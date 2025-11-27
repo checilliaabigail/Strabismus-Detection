@@ -1,1 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strabismus Analysis</title>
 
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      text-align: center;
+      padding: 40px;
+    }
+    .upload-box {
+      margin: 20px auto;
+      padding: 25px;
+      width: 350px;
+      background: white;
+      border-radius: 10px;
+      border: 2px dashed #888;
+    }
+    #filePreview {
+      margin-top: 20px;
+      max-width: 300px;
+      display: none;
+    }
+    #loading {
+      display: none;
+      margin: 20px 0;
+    }
+    #results {
+      display: none;
+      margin: 20px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 10px;
+      max-width: 500px;
+      text-align: left;
+    }
+    .result-item {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 5px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 10px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🩺 Analisis Strabismus</h1>
+  <p>Unggah gambar mata untuk analisis posisi pupil</p>
+
+  <div class="upload-box">
+    <p>Pilih gambar mata untuk dianalisis</p>
+    <input type="file" id="fileInput" accept="image/*" />
+    <p id="fileInfo"></p>
+    <img id="filePreview" />
+    
+    <div id="loading">
+      <p>🔄 Menganalisis gambar... Harap tunggu</p>
+    </div>
+  </div>
+
+  <button id="analyzeBtn" disabled>Analisis Gambar</button>
+
+  <div id="results">
+    <h2>📊 Hasil Analisis</h2>
+    <div id="resultContent"></div>
+  </div>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
