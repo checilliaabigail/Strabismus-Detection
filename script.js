@@ -1,140 +1,143 @@
-// Element references
-const fileInput = document.getElementById('fileInput');
-const fileInfo = document.getElementById('fileInfo');
-const filePreview = document.getElementById('filePreview');
-const analyzeBtn = document.getElementById('analyzeBtn');
-const loading = document.getElementById('loading');
-const results = document.getElementById('results');
-const resultContent = document.getElementById('resultContent');
+let imgElement = document.getElementById("filePreview");
+let fileInput = document.getElementById("fileInput");
+let analyzeBtn = document.getElementById("analyzeBtn");
+let loading = document.getElementById("loading");
+let results = document.getElementById("results");
+let resultContent = document.getElementById("resultContent");
 
-// Event listener untuk file input
-fileInput.addEventListener('change', function(e) {
-  const file = e.target.files[0];
-  
-  if (file) {
-    // Validasi file
-    if (!file.type.startsWith('image/')) {
-      alert('Harap pilih file gambar!');
-      return;
-    }
-    
-    // Tampilkan info file
-    fileInfo.textContent = `File: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
-    
-    // Tampilkan preview gambar
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      filePreview.src = e.target.result;
-      filePreview.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
-    
-    // Aktifkan tombol analisis
+let src, gray;
+let faceCascade, eyeCascade;
+
+fileInput.addEventListener("change", function () {
+    let file = fileInput.files[0];
+
+    if (!file) return;
+
+    document.getElementById("fileInfo").textContent = file.name;
+
+    imgElement.src = URL.createObjectURL(file);
+    imgElement.style.display = "block";
+
     analyzeBtn.disabled = false;
-  }
 });
 
-// Event listener untuk tombol analisis
-analyzeBtn.addEventListener('click', async function() {
-  const file = fileInput.files[0];
-  
-  if (!file) {
-    alert('Harap pilih file terlebih dahulu!');
-    return;
-  }
-  
-  // Tampilkan loading
-  loading.style.display = 'block';
-  analyzeBtn.disabled = true;
-  results.style.display = 'none';
-  
-  try {
-    // Kirim file ke server
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const response = await fetch('/analyze', {
-      method: 'POST',
-      body: formData
+function loadCascades() {
+    return new Promise(resolve => {
+        faceCascade = new cv.CascadeClassifier();
+        eyeCascade = new cv.CascadeClassifier();
+
+        faceCascade.load("haarcascade_frontalface_default.xml");
+        eyeCascade.load("haarcascade_eye.xml");
+
+        resolve();
     });
-    
-    if (!response.ok) {
-      throw new Error('Server error: ' + response.status);
-    }
-    
-    const result = await response.json();
-    
-    // Tampilkan hasil
-    displayResults(result);
-    
-  } catch (error) {
-    console.error('Error:', error);
-    alert('Terjadi kesalahan saat menganalisis gambar: ' + error.message);
-  } finally {
-    // Sembunyikan loading
-    loading.style.display = 'none';
-    analyzeBtn.disabled = false;
-  }
-});
-
-// Fungsi untuk menampilkan hasil
-function displayResults(data) {
-  let html = '';
-  
-  if (data.success) {
-    html = `
-      <div class="result-item">
-        <strong>Status:</strong> ✅ Analisis Berhasil
-      </div>
-      <div class="result-item">
-        <strong>File:</strong> ${data.filename}
-      </div>
-      <div class="result-item">
-        <strong>Mata Kanan:</strong> ${data.right_eye || 'Tidak terdeteksi'}
-      </div>
-      <div class="result-item">
-        <strong>Mata Kiri:</strong> ${data.left_eye || 'Tidak terdeteksi'}
-      </div>
-      <div class="result-item">
-        <strong>DX Value:</strong> ${data.dx || 'Tidak dapat dihitung'}
-      </div>
-      <div class="result-item">
-        <strong>Keterangan:</strong> ${data.interpretation || ''}
-      </div>
-    `;
-    
-    // Tambahkan interpretasi medis sederhana
-    if (data.dx && !isNaN(data.dx)) {
-      const dxValue = parseFloat(data.dx);
-      let interpretation = '';
-      
-      if (dxValue < 0.05) {
-        interpretation = 'Normal - Posisi pupil simetris';
-      } else if (dxValue < 0.1) {
-        interpretation = 'Borderline - Perbedaan posisi pupil kecil';
-      } else {
-        interpretation = 'Abnormal - Kemungkinan strabismus';
-      }
-      
-      html += `<div class="result-item" style="background: #fff3cd;">
-        <strong>Interpretasi:</strong> ${interpretation}
-      </div>`;
-    }
-    
-  } else {
-    html = `
-      <div class="result-item" style="background: #f8d7da;">
-        <strong>Status:</strong> ❌ Analisis Gagal
-      </div>
-      <div class="result-item">
-        <strong>Error:</strong> ${data.error || 'Unknown error'}
-      </div>
-    `;
-  }
-  
-  resultContent.innerHTML = html;
-  results.style.display = 'block';
-  
-  // Scroll ke hasil
-  results.scrollIntoView({ behavior: 'smooth' });
 }
+
+async function analyzeImage() {
+    analyzeBtn.disabled = true;
+    loading.style.display = "block";
+    results.style.display = "none";
+
+    await loadCascades();
+
+    src = cv.imread("filePreview");
+    gray = new cv.Mat();
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+    // FACE DETECTION
+    let faces = new cv.RectVector();
+    let faceMat = new cv.Mat();
+
+    cv.equalizeHist(gray, faceMat);
+    faceCascade.detectMultiScale(faceMat, faces, 1.1, 3, 0);
+
+    if (faces.size() === 0) {
+        showResult("❌ Wajah tidak terdeteksi");
+        cleanup();
+        return;
+    }
+
+    let face = faces.get(0);
+    let faceROI = gray.roi(face);
+
+    // EYE DETECTION
+    let eyes = new cv.RectVector();
+    eyeCascade.detectMultiScale(faceROI, eyes, 1.1, 3, 0);
+
+    if (eyes.size() < 2) {
+        showResult("❌ Tidak cukup mata terdeteksi");
+        cleanup();
+        return;
+    }
+
+    // Sort eyes by x-position
+    let eyeList = [];
+    for (let i = 0; i < eyes.size(); i++) {
+        let e = eyes.get(i);
+        eyeList.push({ x: e.x, y: e.y, w: e.width, h: e.height });
+    }
+    eyeList.sort((a, b) => a.x - b.x);
+
+    let leftEye = faceROI.roi(new cv.Rect(eyeList[0].x, eyeList[0].y, eyeList[0].w, eyeList[0].h));
+    let rightEye = faceROI.roi(new cv.Rect(eyeList[1].x, eyeList[1].y, eyeList[1].w, eyeList[1].h));
+
+    let leftCircle = detectPupil(leftEye);
+    let rightCircle = detectPupil(rightEye);
+
+    if (!leftCircle || !rightCircle) {
+        showResult("❌ Pupil tidak terdeteksi");
+        cleanup();
+        return;
+    }
+
+    // NORMALIZED POSITION
+    let leftNorm = leftCircle.x / leftEye.cols;
+    let rightNorm = rightCircle.x / rightEye.cols;
+    let dx = leftNorm - rightNorm;
+
+    showResult(`
+        <div class="result-item"><b>Left Pupil:</b> (${leftCircle.x}, ${leftCircle.y}), r=${leftCircle.r}</div>
+        <div class="result-item"><b>Right Pupil:</b> (${rightCircle.x}, ${rightCircle.y}), r=${rightCircle.r}</div>
+        <div class="result-item"><b>Left Norm:</b> ${leftNorm.toFixed(3)}</div>
+        <div class="result-item"><b>Right Norm:</b> ${rightNorm.toFixed(3)}</div>
+        <div class="result-item"><b>dx:</b> ${dx.toFixed(3)}</div>
+    `);
+
+    cleanup();
+}
+
+function detectPupil(eyeMat) {
+    let circles = new cv.Mat();
+    cv.HoughCircles(
+        eyeMat,
+        circles,
+        cv.HOUGH_GRADIENT,
+        1,
+        20,
+        100,
+        15,
+        5,
+        40
+    );
+
+    if (circles.rows === 0) return null;
+
+    let x = circles.data32F[0];
+    let y = circles.data32F[1];
+    let r = circles.data32F[2];
+
+    return { x, y, r };
+}
+
+function showResult(html) {
+    loading.style.display = "none";
+    results.style.display = "block";
+    resultContent.innerHTML = html;
+}
+
+function cleanup() {
+    if (src) src.delete();
+    if (gray) gray.delete();
+}
+
+document.getElementById("analyzeBtn").addEventListener("click", analyzeImage);
