@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Strabismus Analysis</title>
+  <title>Strabismus Detection</title>
 
   <style>
     body {
@@ -35,7 +35,7 @@
       padding: 20px;
       background: white;
       border-radius: 10px;
-      max-width: 600px;
+      max-width: 500px;
       text-align: left;
     }
     .result-item {
@@ -62,36 +62,37 @@
     }
   </style>
 </head>
-
 <body>
 
-  <h1>🩺 Analisis Strabismus</h1>
-  <p>Unggah gambar mata untuk analisis posisi pupil</p>
+  <h1>🩺 Strabismus Detection</h1>
+  <p>Upload eye image for pupil position analysis</p>
 
-  <!-- UPLOAD AREA -->
   <div class="upload-box">
-    <p>Pilih gambar mata untuk dianalisis</p>
+    <p>Select an image</p>
     <input type="file" id="fileInput" accept="image/*" />
     <p id="fileInfo"></p>
     <img id="filePreview" />
-
+    
     <div id="loading">
-      <p>🔄 Menganalisis gambar... Harap tunggu</p>
+      <p>🔄 Analyzing image... Please wait</p>
     </div>
   </div>
 
-  <button id="analyzeBtn" disabled>Analisis Gambar</button>
+  <button id="analyzeBtn" disabled>Analyze Image</button>
 
-  <!-- ANALYSIS RESULTS -->
   <div id="results">
-    <h2>📊 Hasil Analisis</h2>
+    <h2>📊 Analysis Result</h2>
     <div id="resultContent"></div>
   </div>
 
-  <!-- LOAD OPENCV -->
-  <script async src="opencv.js" onload="onOpenCvReady();"></script>
+  <!-- ========================================== -->
+  <!--            SCRIPTS DITAMBAHKAN DI SINI       -->
+  <!-- ========================================== -->
 
-  <!-- LOAD MAIN SCRIPT -->
+  <!-- Load OpenCV.js FIRST -->
+  <script async src="opencv.js" onload="onOpenCvReady()"></script>
+  
+  <!-- Load MAIN logic -->
   <script src="script.js"></script>
 
 </body>
