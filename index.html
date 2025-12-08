@@ -24,10 +24,13 @@
       margin-top: 20px;
       max-width: 300px;
       display: none;
+      border-radius: 6px;
     }
     #loading {
       display: none;
       margin: 20px 0;
+      font-size: 18px;
+      font-weight: bold;
     }
     #results {
       display: none;
@@ -52,6 +55,7 @@
       border-radius: 5px;
       cursor: pointer;
       margin: 10px;
+      font-size: 16px;
     }
     button:hover {
       background: #0056b3;
@@ -60,12 +64,19 @@
       background: #6c757d;
       cursor: not-allowed;
     }
+    #opencvStatus {
+      font-size: 15px;
+      margin-top: 15px;
+      color: #444;
+    }
   </style>
 </head>
 <body>
 
   <h1>🩺 Analisis Strabismus</h1>
   <p>Unggah gambar mata untuk analisis posisi pupil</p>
+
+  <div id="opencvStatus">📦 Loading OpenCV.js...</div>
 
   <div class="upload-box">
     <p>Pilih gambar mata untuk dianalisis</p>
@@ -74,7 +85,7 @@
     <img id="filePreview" />
     
     <div id="loading">
-      <p>🔄 Menganalisis gambar... Harap tunggu</p>
+      🔄 Menganalisis gambar... Harap tunggu...
     </div>
   </div>
 
@@ -85,6 +96,21 @@
     <div id="resultContent"></div>
   </div>
 
+  <!-- Load OpenCV.js -->
+  <script async src="https://docs.opencv.org/4.x/opencv.js"
+          onload="openCvReady();" 
+          onerror="document.getElementById('opencvStatus').innerHTML='❌ Gagal memuat OpenCV.js';">
+  </script>
+
+  <script>
+    function openCvReady() {
+      document.getElementById("opencvStatus").innerHTML = "✅ OpenCV.js Loaded";
+      document.getElementById("analyzeBtn").disabled = false;
+      console.log("OpenCV.js is ready!");
+    }
+  </script>
+
+  <!-- Your main processing code -->
   <script src="script.js"></script>
 
 </body>
