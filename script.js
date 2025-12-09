@@ -133,7 +133,7 @@ function runAnalysis() {
 
     let leftNorm = leftPupil.x / leftROI.cols;
     let rightNorm = rightPupil.x / rightROI.cols;
-    let dx = leftNorm - rightNorm;
+    let dx = rightNorm - leftNorm;
 
     let html = `
         <div class="result-item"><b>Left Pupil:</b> ${JSON.stringify(leftPupil)}</div>
