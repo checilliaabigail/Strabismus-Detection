@@ -3,7 +3,6 @@ let cvReady = false;
 
 // Dipanggil otomatis setelah opencv.js selesai load
 function onOpenCvReady() {
-    await delay (1000);
     console.log("OpenCV is ready!");
     cvReady = true;
 
