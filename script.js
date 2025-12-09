@@ -12,12 +12,12 @@ function onOpenCvReady() {
 
 // Load XML cascade files
 function loadCascadeFiles() {
-    await delay (1000);
+    //await delay (1000);
     loadCascade("haarcascade_frontalface_default.xml", (classifier) => {
         faceCascade = classifier;
         console.log("Face cascade loaded");
     });
-    await delay (1000);
+    //await delay (1000);
     loadCascade("haarcascade_eye.xml", (classifier) => {
         eyeCascade = classifier;
         console.log("Eye cascade loaded");
