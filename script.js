@@ -148,7 +148,7 @@ function runAnalysis() {
 
         // draw pupil point (red)
         let pupilPoint = new cv.Point(x + pupil.x, y + pupil.y);
-        cv.circle(src, pupilPoint, 4, [255, 0, 0, 255], -1);
+        cv.circle(src, pupilPoint, 2, [255, 0, 0, 255], -1);
     });
 
     // Tampilkan hasil ke canvas
