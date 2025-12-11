@@ -1,30 +1,42 @@
 let faceCascade, eyeCascade;
 let cvReady = false;
+let cascadesReady = false;
 
 // Dipanggil otomatis setelah opencv.js selesai load
 function onOpenCvReady() {
-    console.log("OpenCV is ready!");
+    console.log("OpenCV loading...");
     
-    // Tunggu cv module benar-benar siap
-    if (typeof cv !== 'undefined' && cv.Mat) {
-        cvReady = true;
-        loadCascadeFiles();
-    } else {
-        console.log("Waiting for cv to be fully ready...");
-        setTimeout(onOpenCvReady, 100);
-    }
+    // Tunggu cv module benar-benar siap (synchronous check)
+    let checkInterval = setInterval(() => {
+        if (typeof cv !== 'undefined' && cv.Mat && cv.CascadeClassifier) {
+            clearInterval(checkInterval);
+            console.log("✅ OpenCV is ready!");
+            cvReady = true;
+            
+            // Load cascades SETELAH OpenCV siap
+            loadCascadeFilesSequential();
+        }
+    }, 100);
 }
 
-// Load XML cascade files
-function loadCascadeFiles() {
+// Load cascade files secara sequential (synchronous)
+function loadCascadeFilesSequential() {
+    console.log("Loading Haar Cascades...");
+    
+    // Load face cascade dulu
     loadCascade("haarcascade_frontalface_default.xml", (classifier) => {
         faceCascade = classifier;
-        console.log("Face cascade loaded");
-    });
-
-    loadCascade("haarcascade_eye.xml", (classifier) => {
-        eyeCascade = classifier;
-        console.log("Eye cascade loaded");
+        console.log("✅ Face cascade loaded");
+        
+        // Setelah face cascade selesai, baru load eye cascade
+        loadCascade("haarcascade_eye.xml", (classifier) => {
+            eyeCascade = classifier;
+            console.log("✅ Eye cascade loaded");
+            
+            // Semua cascade sudah siap
+            cascadesReady = true;
+            console.log("✅ All cascades ready!");
+        });
     });
 }
 
@@ -70,13 +82,15 @@ fileInput.addEventListener("change", () => {
 
 // ANALYZE
 analyzeBtn.addEventListener("click", () => {
+    // Check 1: OpenCV ready
     if (!cvReady) {
-        alert("OpenCV belum siap. Tunggu 1-2 detik lalu coba lagi.");
+        alert("⏳ OpenCV belum siap. Tunggu beberapa detik lalu coba lagi.");
         return;
     }
 
-    if (!faceCascade || !eyeCascade) {
-        alert("Cascade belum siap.");
+    // Check 2: Cascades loaded
+    if (!cascadesReady || !faceCascade || !eyeCascade) {
+        alert("⏳ Haar Cascades belum siap. Tunggu beberapa detik lalu coba lagi.");
         return;
     }
 
@@ -94,41 +108,49 @@ function runAnalysis() {
     let gray = new cv.Mat();
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
 
-    // FACE DETECTION
-    let faces = new cv.RectVector();
-    let msize = new cv.Size(80,80);
-    faceCascade.detectMultiScale(gray, faces, 1.1, 4, 0, msize);
-
-    if (faces.size() === 0) {
+    // FACE DETECTION (SAMA SEPERTI PYTHON)
+    let faceResult = detectFace(gray);
+    
+    if (!faceResult) {
         showResult("❌ Wajah tidak ditemukan.");
         cleanup(src, gray);
         return;
     }
 
-    let face = faces.get(0);
-    let faceROI = gray.roi(face);
+    let {faceBox, faceGray} = faceResult;
+    console.log("Face detected:", faceBox);
 
-    // EYE DETECTION (Improved - Multiple Parameters like Python)
-    let eyeDetectionResult = improvedEyeDetection(faceROI);
+    // EYE DETECTION DI DALAM WAJAH (SAMA SEPERTI PYTHON)
+    let eyeResult = improvedEyeDetection(faceGray);
     
-    if (!eyeDetectionResult || eyeDetectionResult.length < 2) {
+    if (!eyeResult.bestEyes || eyeResult.bestEyes.length < 2) {
         showResult("❌ Mata tidak ditemukan.");
-        cleanup(src, gray, faceROI);
+        cleanup(src, gray, faceGray);
         return;
     }
 
-    let eyeRects = eyeDetectionResult;
-    eyeRects.sort((a,b)=>a.x - b.x);
+    let eyesInFace = eyeResult.bestEyes;
+    console.log("Eyes dalam face:", eyesInFace);
+    console.log("Best params:", eyeResult.bestParams);
 
-    let leftROI = faceROI.roi(eyeRects[0]);
-    let rightROI = faceROI.roi(eyeRects[1]);
+    // Sort by x position (kiri ke kanan)
+    let eyes = eyesInFace.sort((a, b) => a.x - b.x);
+    console.log("Final eyes (sorted):", eyes);
 
+    // Extract left and right eye ROI
+    let leftEyeRect = eyes[0];
+    let rightEyeRect = eyes[1];
+
+    let leftROI = faceGray.roi(new cv.Rect(leftEyeRect.x, leftEyeRect.y, leftEyeRect.width, leftEyeRect.height));
+    let rightROI = faceGray.roi(new cv.Rect(rightEyeRect.x, rightEyeRect.y, rightEyeRect.width, rightEyeRect.height));
+
+    // PUPIL DETECTION
     let leftPupil = detectPupilHoughFast(leftROI);
     let rightPupil = detectPupilHoughFast(rightROI);
 
     if (!leftPupil || !rightPupil) {
         showResult("❌ Pupil tidak ditemukan.");
-        cleanup(src, gray, faceROI, leftROI, rightROI);
+        cleanup(src, gray, faceGray, leftROI, rightROI);
         return;
     }
 
@@ -150,7 +172,198 @@ function runAnalysis() {
 
     showResult(html);
 
-    cleanup(src, gray, faceROI, leftROI, rightROI);
+    cleanup(src, gray, faceGray, leftROI, rightROI);
+}
+
+// ===== Detect Face (SAMA SEPERTI PYTHON) =====
+function detectFace(gray) {
+    let faces = new cv.RectVector();
+    let minSize = new cv.Size(80, 80);
+    
+    // detectMultiScale dengan parameter SAMA seperti Python
+    faceCascade.detectMultiScale(
+        gray,
+        faces,
+        1.1,        // scaleFactor
+        5,          // minNeighbors
+        0,          // flags
+        minSize     // minSize (80, 80)
+    );
+
+    if (faces.size() === 0) {
+        console.log("❌ Tidak ada wajah terdeteksi");
+        faces.delete();
+        return null;
+    }
+
+    // Ambil wajah dengan area terbesar (paling umum)
+    let facesList = [];
+    for (let i = 0; i < faces.size(); i++) {
+        let face = faces.get(i);
+        facesList.push({
+            x: face.x,
+            y: face.y,
+            width: face.width,
+            height: face.height,
+            area: face.width * face.height
+        });
+    }
+
+    // Sort by area (largest first)
+    facesList.sort((a, b) => b.area - a.area);
+    let largestFace = facesList[0];
+
+    // Crop wajah (face ROI)
+    let faceGray = gray.roi(new cv.Rect(largestFace.x, largestFace.y, largestFace.width, largestFace.height));
+
+    faces.delete();
+
+    return {
+        faceBox: largestFace,
+        faceGray: faceGray
+    };
+}
+
+// ===== Improved Eye Detection (Same as Python) =====
+function improvedEyeDetection(faceGray) {
+    /**
+     * Deteksi mata yang lebih baik untuk gambar close-up mata
+     * Multiple parameter combinations like Python version
+     */
+    
+    // Parameter yang lebih sensitif untuk gambar close-up (SAMA SEPERTI PYTHON)
+    const scaleFactors = [1.01, 1.02, 1.05, 1.1];
+    const minNeighborsList = [1, 2, 3];
+    const minSizes = [
+        new cv.Size(10, 10),
+        new cv.Size(15, 15),
+        new cv.Size(20, 20),
+        new cv.Size(25, 25)
+    ];
+
+    let bestEyes = null;
+    let bestScore = -1;
+
+    for (let sf of scaleFactors) {
+        for (let mn of minNeighborsList) {
+            for (let ms of minSizes) {
+                let eyes = new cv.RectVector();
+                
+                try {
+                    eyeCascade.detectMultiScale(
+                        faceGray,
+                        eyes,
+                        sf,      // scaleFactor
+                        mn,      // minNeighbors
+                        0,       // flags (cv.CASCADE_SCALE_IMAGE di Python = 0)
+                        ms,      // minSize
+                        new cv.Size(0, 0)  // maxSize (unlimited)
+                    );
+
+                    // Filter: hanya ambil 2 mata dengan area terbesar
+                    if (eyes.size() >= 2) {
+                        let eyesWithArea = [];
+                        for (let i = 0; i < eyes.size(); i++) {
+                            let eye = eyes.get(i);
+                            let area = eye.width * eye.height;
+                            eyesWithArea.push({
+                                x: eye.x,
+                                y: eye.y,
+                                width: eye.width,
+                                height: eye.height,
+                                area: area
+                            });
+                        }
+
+                        // Sort by area (largest first) - ambil 2 terbesar
+                        eyesWithArea.sort((a, b) => b.area - a.area);
+                        let eye1 = eyesWithArea[0];
+                        let eye2 = eyesWithArea[1];
+
+                        // Pastikan kedua mata tidak tumpang tindih (overlap check)
+                        let dx = Math.min(eye1.x + eye1.width, eye2.x + eye2.width) - 
+                                 Math.max(eye1.x, eye2.x);
+                        let dy = Math.min(eye1.y + eye1.height, eye2.y + eye2.height) - 
+                                 Math.max(eye1.y, eye2.y);
+
+                        if (dx <= 0 || dy <= 0) {  // Tidak overlap
+                            let score = eye1.area + eye2.area;
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestEyes = [
+                                    {x: eye1.x, y: eye1.y, width: eye1.width, height: eye1.height},
+                                    {x: eye2.x, y: eye2.y, width: eye2.width, height: eye2.height}
+                                ];
+                                console.log(`Found better eyes with score ${score}, params: sf=${sf}, mn=${mn}, size=${ms.width}x${ms.height}`);
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.log("Error in eye detection params:", e);
+                }
+                
+                eyes.delete();
+            }
+        }
+    }
+
+    if (bestEyes) {
+        console.log("Best eyes found:", bestEyes);
+    } else {
+        console.log("No valid eye pair found");
+    }
+
+    return bestEyes;
+}no limit)
+                    );
+
+                    // Filter: hanya ambil 2 mata dengan area terbesar
+                    if (eyes.size() >= 2) {
+                        let eyesWithArea = [];
+                        for (let i = 0; i < eyes.size(); i++) {
+                            let eye = eyes.get(i);
+                            let area = eye.width * eye.height;
+                            eyesWithArea.push({
+                                x: eye.x,
+                                y: eye.y,
+                                width: eye.width,
+                                height: eye.height,
+                                area: area
+                            });
+                        }
+
+                        // Sort by area (largest first)
+                        eyesWithArea.sort((a, b) => b.area - a.area);
+                        let eye1 = eyesWithArea[0];
+                        let eye2 = eyesWithArea[1];
+
+                        // Pastikan kedua mata tidak tumpang tindih
+                        let dx = Math.min(eye1.x + eye1.width, eye2.x + eye2.width) - 
+                                 Math.max(eye1.x, eye2.x);
+                        let dy = Math.min(eye1.y + eye1.height, eye2.y + eye2.height) - 
+                                 Math.max(eye1.y, eye2.y);
+
+                        if (dx <= 0 || dy <= 0) {  // Tidak overlap
+                            let score = eye1.area + eye2.area;
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestEyes = [
+                                    {x: eye1.x, y: eye1.y, width: eye1.width, height: eye1.height},
+                                    {x: eye2.x, y: eye2.y, width: eye2.width, height: eye2.height}
+                                ];
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.log("Error in eye detection params:", e);
+                }
+                
+                eyes.delete();
+            }
+        }
+    }
+
+    return bestEyes;
 }
 
 // ===== Draw Eye Visualization =====
