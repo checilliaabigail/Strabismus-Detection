@@ -111,10 +111,21 @@
     </div>
   </div>
 
-  <!-- Load OpenCV.js -->
-  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady()"></script>
-  
-  <!-- Load script.js -->
+  <!-- Load script.js FIRST -->
   <script src="script.js"></script>
+  
+  <!-- Load OpenCV.js AFTER script.js -->
+  <script>
+    var Module = {
+      onRuntimeInitialized: function() {
+        console.log("OpenCV.js runtime initialized");
+        // Panggil onOpenCvReady setelah runtime siap
+        if (typeof onOpenCvReady === 'function') {
+          onOpenCvReady();
+        }
+      }
+    };
+  </script>
+  <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
 </body>
 </html>
