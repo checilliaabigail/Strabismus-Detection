@@ -100,6 +100,148 @@ analyzeBtn.addEventListener("click", () => {
     setTimeout(runAnalysis, 200);
 });
 
+// ===== Detect Face (SAMA SEPERTI PYTHON) =====
+function detectFace(gray) {
+    let faces = new cv.RectVector();
+    let minSize = new cv.Size(80, 80);
+    
+    // detectMultiScale dengan parameter SAMA seperti Python
+    faceCascade.detectMultiScale(
+        gray,
+        faces,
+        1.1,        // scaleFactor
+        5,          // minNeighbors
+        0,          // flags
+        minSize     // minSize (80, 80)
+    );
+
+    if (faces.size() === 0) {
+        console.log("❌ Tidak ada wajah terdeteksi");
+        faces.delete();
+        return null;
+    }
+
+    // Ambil wajah dengan area terbesar (paling umum)
+    let facesList = [];
+    for (let i = 0; i < faces.size(); i++) {
+        let face = faces.get(i);
+        facesList.push({
+            x: face.x,
+            y: face.y,
+            width: face.width,
+            height: face.height,
+            area: face.width * face.height
+        });
+    }
+
+    // Sort by area (largest first)
+    facesList.sort((a, b) => b.area - a.area);
+    let largestFace = facesList[0];
+
+    // Crop wajah (face ROI)
+    let faceGray = gray.roi(new cv.Rect(largestFace.x, largestFace.y, largestFace.width, largestFace.height));
+
+    faces.delete();
+
+    return {
+        faceBox: largestFace,
+        faceGray: faceGray
+    };
+}
+
+// ===== Improved Eye Detection (100% SAMA SEPERTI PYTHON) =====
+function improvedEyeDetection(gray) {
+    /**
+     * Deteksi mata yang lebih baik untuk gambar close-up mata
+     * PERSIS seperti Python version
+     */
+    
+    // Parameter yang lebih sensitif untuk gambar close-up
+    const scaleFactors = [1.01, 1.02, 1.05, 1.1];
+    const minNeighborsList = [1, 2, 3];
+    const minSizes = [
+        new cv.Size(10, 10),
+        new cv.Size(15, 15),
+        new cv.Size(20, 20),
+        new cv.Size(25, 25)
+    ];
+
+    let bestEyes = null;
+    let bestScore = -1;
+    let bestParams = null;
+
+    for (let sf of scaleFactors) {
+        for (let mn of minNeighborsList) {
+            for (let ms of minSizes) {
+                let eyes = new cv.RectVector();
+                
+                try {
+                    eyeCascade.detectMultiScale(
+                        gray,
+                        eyes,
+                        sf,      // scaleFactor
+                        mn,      // minNeighbors
+                        0,       // flags (cv2.CASCADE_SCALE_IMAGE = 0)
+                        ms       // minSize
+                    );
+
+                    // Filter: hanya ambil 2 mata dengan area terbesar
+                    if (eyes.size() >= 2) {
+                        // areas = [(ex, ey, ew, eh, ew*eh) for (ex, ey, ew, eh) in eyes]
+                        let areas = [];
+                        for (let i = 0; i < eyes.size(); i++) {
+                            let eye = eyes.get(i);
+                            areas.push({
+                                x: eye.x,
+                                y: eye.y,
+                                width: eye.width,
+                                height: eye.height,
+                                area: eye.width * eye.height
+                            });
+                        }
+
+                        // areas_sorted = sorted(areas, key=lambda x: x[4], reverse=True)[:2]
+                        areas.sort((a, b) => b.area - a.area);
+                        let eye1 = areas[0];
+                        let eye2 = areas[1];
+
+                        // Pastikan kedua mata tidak tumpang tindih
+                        let x1 = eye1.x, y1 = eye1.y, w1 = eye1.width, h1 = eye1.height;
+                        let x2 = eye2.x, y2 = eye2.y, w2 = eye2.width, h2 = eye2.height;
+
+                        // Hitung overlap
+                        let dx = Math.min(x1 + w1, x2 + w2) - Math.max(x1, x2);
+                        let dy = Math.min(y1 + h1, y2 + h2) - Math.max(y1, y2);
+
+                        if (dx <= 0 || dy <= 0) {  // Tidak overlap
+                            let score = eye1.area + eye2.area;
+                            if (score > bestScore) {
+                                bestScore = score;
+                                // Convert to regular integers immediately
+                                bestEyes = [
+                                    {x: x1, y: y1, width: w1, height: h1},
+                                    {x: x2, y: y2, width: w2, height: h2}
+                                ];
+                                bestParams = {sf: sf, mn: mn, minSize: ms.width};
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.log("Error in eye detection params:", e);
+                }
+                
+                eyes.delete();
+            }
+        }
+    }
+
+    // return (best_eyes if best_eyes else [], best_params)
+    return {
+        bestEyes: bestEyes ? bestEyes : [],
+        bestParams: bestParams
+    };
+}
+
 // ===== Main Logic =====
 function runAnalysis() {
     let img = filePreview;
@@ -173,197 +315,6 @@ function runAnalysis() {
     showResult(html);
 
     cleanup(src, gray, faceGray, leftROI, rightROI);
-}
-
-// ===== Detect Face (SAMA SEPERTI PYTHON) =====
-function detectFace(gray) {
-    let faces = new cv.RectVector();
-    let minSize = new cv.Size(80, 80);
-    
-    // detectMultiScale dengan parameter SAMA seperti Python
-    faceCascade.detectMultiScale(
-        gray,
-        faces,
-        1.1,        // scaleFactor
-        5,          // minNeighbors
-        0,          // flags
-        minSize     // minSize (80, 80)
-    );
-
-    if (faces.size() === 0) {
-        console.log("❌ Tidak ada wajah terdeteksi");
-        faces.delete();
-        return null;
-    }
-
-    // Ambil wajah dengan area terbesar (paling umum)
-    let facesList = [];
-    for (let i = 0; i < faces.size(); i++) {
-        let face = faces.get(i);
-        facesList.push({
-            x: face.x,
-            y: face.y,
-            width: face.width,
-            height: face.height,
-            area: face.width * face.height
-        });
-    }
-
-    // Sort by area (largest first)
-    facesList.sort((a, b) => b.area - a.area);
-    let largestFace = facesList[0];
-
-    // Crop wajah (face ROI)
-    let faceGray = gray.roi(new cv.Rect(largestFace.x, largestFace.y, largestFace.width, largestFace.height));
-
-    faces.delete();
-
-    return {
-        faceBox: largestFace,
-        faceGray: faceGray
-    };
-}
-
-// ===== Improved Eye Detection (Same as Python) =====
-function improvedEyeDetection(faceGray) {
-    /**
-     * Deteksi mata yang lebih baik untuk gambar close-up mata
-     * Multiple parameter combinations like Python version
-     */
-    
-    // Parameter yang lebih sensitif untuk gambar close-up (SAMA SEPERTI PYTHON)
-    const scaleFactors = [1.01, 1.02, 1.05, 1.1];
-    const minNeighborsList = [1, 2, 3];
-    const minSizes = [
-        new cv.Size(10, 10),
-        new cv.Size(15, 15),
-        new cv.Size(20, 20),
-        new cv.Size(25, 25)
-    ];
-
-    let bestEyes = null;
-    let bestScore = -1;
-
-    for (let sf of scaleFactors) {
-        for (let mn of minNeighborsList) {
-            for (let ms of minSizes) {
-                let eyes = new cv.RectVector();
-                
-                try {
-                    eyeCascade.detectMultiScale(
-                        faceGray,
-                        eyes,
-                        sf,      // scaleFactor
-                        mn,      // minNeighbors
-                        0,       // flags (cv.CASCADE_SCALE_IMAGE di Python = 0)
-                        ms,      // minSize
-                        new cv.Size(0, 0)  // maxSize (unlimited)
-                    );
-
-                    // Filter: hanya ambil 2 mata dengan area terbesar
-                    if (eyes.size() >= 2) {
-                        let eyesWithArea = [];
-                        for (let i = 0; i < eyes.size(); i++) {
-                            let eye = eyes.get(i);
-                            let area = eye.width * eye.height;
-                            eyesWithArea.push({
-                                x: eye.x,
-                                y: eye.y,
-                                width: eye.width,
-                                height: eye.height,
-                                area: area
-                            });
-                        }
-
-                        // Sort by area (largest first) - ambil 2 terbesar
-                        eyesWithArea.sort((a, b) => b.area - a.area);
-                        let eye1 = eyesWithArea[0];
-                        let eye2 = eyesWithArea[1];
-
-                        // Pastikan kedua mata tidak tumpang tindih (overlap check)
-                        let dx = Math.min(eye1.x + eye1.width, eye2.x + eye2.width) - 
-                                 Math.max(eye1.x, eye2.x);
-                        let dy = Math.min(eye1.y + eye1.height, eye2.y + eye2.height) - 
-                                 Math.max(eye1.y, eye2.y);
-
-                        if (dx <= 0 || dy <= 0) {  // Tidak overlap
-                            let score = eye1.area + eye2.area;
-                            if (score > bestScore) {
-                                bestScore = score;
-                                bestEyes = [
-                                    {x: eye1.x, y: eye1.y, width: eye1.width, height: eye1.height},
-                                    {x: eye2.x, y: eye2.y, width: eye2.width, height: eye2.height}
-                                ];
-                                console.log(`Found better eyes with score ${score}, params: sf=${sf}, mn=${mn}, size=${ms.width}x${ms.height}`);
-                            }
-                        }
-                    }
-                } catch(e) {
-                    console.log("Error in eye detection params:", e);
-                }
-                
-                eyes.delete();
-            }
-        }
-    }
-
-    if (bestEyes) {
-        console.log("Best eyes found:", bestEyes);
-    } else {
-        console.log("No valid eye pair found");
-    }
-
-    return bestEyes;
-}no limit)
-                    );
-
-                    // Filter: hanya ambil 2 mata dengan area terbesar
-                    if (eyes.size() >= 2) {
-                        let eyesWithArea = [];
-                        for (let i = 0; i < eyes.size(); i++) {
-                            let eye = eyes.get(i);
-                            let area = eye.width * eye.height;
-                            eyesWithArea.push({
-                                x: eye.x,
-                                y: eye.y,
-                                width: eye.width,
-                                height: eye.height,
-                                area: area
-                            });
-                        }
-
-                        // Sort by area (largest first)
-                        eyesWithArea.sort((a, b) => b.area - a.area);
-                        let eye1 = eyesWithArea[0];
-                        let eye2 = eyesWithArea[1];
-
-                        // Pastikan kedua mata tidak tumpang tindih
-                        let dx = Math.min(eye1.x + eye1.width, eye2.x + eye2.width) - 
-                                 Math.max(eye1.x, eye2.x);
-                        let dy = Math.min(eye1.y + eye1.height, eye2.y + eye2.height) - 
-                                 Math.max(eye1.y, eye2.y);
-
-                        if (dx <= 0 || dy <= 0) {  // Tidak overlap
-                            let score = eye1.area + eye2.area;
-                            if (score > bestScore) {
-                                bestScore = score;
-                                bestEyes = [
-                                    {x: eye1.x, y: eye1.y, width: eye1.width, height: eye1.height},
-                                    {x: eye2.x, y: eye2.y, width: eye2.width, height: eye2.height}
-                                ];
-                            }
-                        }
-                    }
-                } catch(e) {
-                    console.log("Error in eye detection params:", e);
-                }
-                
-                eyes.delete();
-            }
-        }
-    }
-
-    return bestEyes;
 }
 
 // ===== Draw Eye Visualization =====
