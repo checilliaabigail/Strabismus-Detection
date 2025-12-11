@@ -12,12 +12,11 @@ function onOpenCvReady() {
 
 // Load XML cascade files
 function loadCascadeFiles() {
-    await delay (1000);
     loadCascade("haarcascade_frontalface_default.xml", (classifier) => {
         faceCascade = classifier;
         console.log("Face cascade loaded");
     });
-    await delay (1000);
+
     loadCascade("haarcascade_eye.xml", (classifier) => {
         eyeCascade = classifier;
         console.log("Eye cascade loaded");
@@ -132,34 +131,9 @@ function runAnalysis() {
         return;
     }
 
-    // =============================================
-    // 🔥 DRAW ONLY EYES + PUPIL
-    // =============================================
-    eyeRects.forEach((rect, i) => {
-        let x = face.x + rect.x;
-        let y = face.y + rect.y;
-
-        // draw bounding box for eyes (green)
-        let p1 = new cv.Point(x, y);
-        let p2 = new cv.Point(x + rect.width, y + rect.height);
-        cv.rectangle(src, p1, p2, [0, 255, 0, 255], 2);
-
-        let pupil = (i === 0) ? leftPupil : rightPupil;
-
-        // draw pupil point (red)
-        let pupilPoint = new cv.Point(x + pupil.x, y + pupil.y);
-        cv.circle(src, pupilPoint, 2, [255, 0, 0, 255], -1);
-    });
-
-    // Tampilkan hasil ke canvas
-    cv.imshow("outputCanvas", src);
-
-    // =============================================
-    // OUTPUT NUMERIC RESULT
-    // =============================================
     let leftNorm = leftPupil.x / leftROI.cols;
     let rightNorm = rightPupil.x / rightROI.cols;
-    let dx = rightNorm - leftNorm;
+    let dx = leftNorm - rightNorm;
 
     let html = `
         <div class="result-item"><b>Left Pupil:</b> ${JSON.stringify(leftPupil)}</div>
