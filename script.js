@@ -80,26 +80,6 @@ fileInput.addEventListener("change", () => {
     analyzeBtn.disabled = false;
 });
 
-// ANALYZE
-analyzeBtn.addEventListener("click", () => {
-    // Check 1: OpenCV ready
-    if (!cvReady) {
-        alert("⏳ OpenCV belum siap. Tunggu beberapa detik lalu coba lagi.");
-        return;
-    }
-
-    // Check 2: Cascades loaded
-    if (!cascadesReady || !faceCascade || !eyeCascade) {
-        alert("⏳ Haar Cascades belum siap. Tunggu beberapa detik lalu coba lagi.");
-        return;
-    }
-
-    loadingDiv.style.display = "block";
-    resultBox.style.display = "none";
-
-    setTimeout(runAnalysis, 200);
-});
-
 // ===== Detect Face (SAMA SEPERTI PYTHON) =====
 function detectFace(gray) {
     let faces = new cv.RectVector();
@@ -449,6 +429,26 @@ function detectPupilHoughFast(eyeMat) {
         r: Math.round(bestCircle.r)
     };
 }
+
+// ANALYZE BUTTON (setelah semua fungsi didefinisikan)
+analyzeBtn.addEventListener("click", () => {
+    // Check 1: OpenCV ready
+    if (!cvReady) {
+        alert("⏳ OpenCV belum siap. Tunggu beberapa detik lalu coba lagi.");
+        return;
+    }
+
+    // Check 2: Cascades loaded
+    if (!cascadesReady || !faceCascade || !eyeCascade) {
+        alert("⏳ Haar Cascades belum siap. Tunggu beberapa detik lalu coba lagi.");
+        return;
+    }
+
+    loadingDiv.style.display = "block";
+    resultBox.style.display = "none";
+
+    setTimeout(runAnalysis, 200);
+});
 
 function showResult(text) {
     loadingDiv.style.display = "none";
