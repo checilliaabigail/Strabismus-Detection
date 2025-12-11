@@ -4,10 +4,15 @@ let cvReady = false;
 // Dipanggil otomatis setelah opencv.js selesai load
 function onOpenCvReady() {
     console.log("OpenCV is ready!");
-    cvReady = true;
-
-    // load cascade setelah OpenCV siap
-    loadCascadeFiles();
+    
+    // Tunggu cv module benar-benar siap
+    if (typeof cv !== 'undefined' && cv.Mat) {
+        cvReady = true;
+        loadCascadeFiles();
+    } else {
+        console.log("Waiting for cv to be fully ready...");
+        setTimeout(onOpenCvReady, 100);
+    }
 }
 
 // Load XML cascade files
@@ -103,20 +108,16 @@ function runAnalysis() {
     let face = faces.get(0);
     let faceROI = gray.roi(face);
 
-    // EYE DETECTION
-    let eyes = new cv.RectVector();
-    eyeCascade.detectMultiScale(faceROI, eyes, 1.1, 2, 0);
-
-    if (eyes.size() < 2) {
+    // EYE DETECTION (Improved - Multiple Parameters like Python)
+    let eyeDetectionResult = improvedEyeDetection(faceROI);
+    
+    if (!eyeDetectionResult || eyeDetectionResult.length < 2) {
         showResult("❌ Mata tidak ditemukan.");
         cleanup(src, gray, faceROI);
         return;
     }
 
-    let eyeRects = [];
-    for (let i = 0; i < eyes.size(); i++) {
-        eyeRects.push(eyes.get(i));
-    }
+    let eyeRects = eyeDetectionResult;
     eyeRects.sort((a,b)=>a.x - b.x);
 
     let leftROI = faceROI.roi(eyeRects[0]);
