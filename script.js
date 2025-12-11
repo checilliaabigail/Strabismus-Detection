@@ -45,7 +45,7 @@ function loadCascade(filename, callback) {
     xhr.send();
 }
 
-// ===== DOM ======
+// ===== DOM =====
 const fileInput = document.getElementById("fileInput");
 const filePreview = document.getElementById("filePreview");
 const analyzeBtn = document.getElementById("analyzeBtn");
@@ -131,13 +131,17 @@ function runAnalysis() {
         return;
     }
 
+    // Draw visualizations
+    drawEyeVisualization(leftROI, leftPupil, "leftEyeCanvas");
+    drawEyeVisualization(rightROI, rightPupil, "rightEyeCanvas");
+
     let leftNorm = leftPupil.x / leftROI.cols;
     let rightNorm = rightPupil.x / rightROI.cols;
     let dx = leftNorm - rightNorm;
 
     let html = `
-        <div class="result-item"><b>Left Pupil:</b> ${JSON.stringify(leftPupil)}</div>
-        <div class="result-item"><b>Right Pupil:</b> ${JSON.stringify(rightPupil)}</div>
+        <div class="result-item"><b>Left Pupil:</b> (x: ${leftPupil.x}, y: ${leftPupil.y}, r: ${leftPupil.r})</div>
+        <div class="result-item"><b>Right Pupil:</b> (x: ${rightPupil.x}, y: ${rightPupil.y}, r: ${rightPupil.r})</div>
         <div class="result-item"><b>Left Normalized X:</b> ${leftNorm.toFixed(3)}</div>
         <div class="result-item"><b>Right Normalized X:</b> ${rightNorm.toFixed(3)}</div>
         <div class="result-item"><b>DX:</b> ${dx.toFixed(3)}</div>
@@ -146,6 +150,26 @@ function runAnalysis() {
     showResult(html);
 
     cleanup(src, gray, faceROI, leftROI, rightROI);
+}
+
+// ===== Draw Eye Visualization =====
+function drawEyeVisualization(eyeMat, pupil, canvasId) {
+    // Convert to RGB for visualization
+    let output = new cv.Mat();
+    cv.cvtColor(eyeMat, output, cv.COLOR_GRAY2RGB);
+
+    // Draw green circle around pupil
+    let center = new cv.Point(pupil.x, pupil.y);
+    cv.circle(output, center, pupil.r, [0, 255, 0, 255], 2);
+    
+    // Draw red dot at center
+    cv.circle(output, center, 2, [255, 0, 0, 255], 3);
+
+    // Display on canvas
+    let canvas = document.getElementById(canvasId);
+    cv.imshow(canvas, output);
+
+    output.delete();
 }
 
 // ===== Hough Circle Pupil Detection (Auto - Multiple Parameters) =====
