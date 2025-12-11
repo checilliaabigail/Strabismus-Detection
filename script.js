@@ -148,27 +148,117 @@ function runAnalysis() {
     cleanup(src, gray, faceROI, leftROI, rightROI);
 }
 
-// ===== Hough Circle Pupil Detection =====
+// ===== Hough Circle Pupil Detection (Auto - Multiple Parameters) =====
 function detectPupilHoughFast(eyeMat) {
-    let eq = new cv.Mat();
-    cv.equalizeHist(eyeMat, eq);
+    // Apply Gaussian blur
+    let blurred = new cv.Mat();
+    let ksize = new cv.Size(7, 7);
+    cv.GaussianBlur(eyeMat, blurred, ksize, 2, 2, cv.BORDER_DEFAULT);
 
-    let circles = new cv.Mat();
-    cv.HoughCircles(eq, circles, cv.HOUGH_GRADIENT,
-        1.2, 20, 80, 15, 5, 40);
+    // Parameter sets (sama seperti Python)
+    const paramSets = [
+        // Set 1: Parameter normal
+        {dp: 1.1, param1: 80, param2: 20, minRadius: 15, maxRadius: 40},
+        // Set 2: Lebih sensitif
+        {dp: 1.0, param1: 60, param2: 15, minRadius: 10, maxRadius: 45},
+        // Set 3: Sangat sensitif (fallback)
+        {dp: 0.9, param1: 40, param2: 10, minRadius: 5, maxRadius: 50},
+        // Set 4: Untuk pupil besar
+        {dp: 1.2, param1: 100, param2: 25, minRadius: 20, maxRadius: 35},
+        // Set 5: Untuk pupil kecil
+        {dp: 1.0, param1: 90, param2: 30, minRadius: 8, maxRadius: 30}
+    ];
 
-    if (circles.rows === 0) {
-        eq.delete(); circles.delete();
+    let allCircles = [];
+    let eyeWidth = eyeMat.cols;
+    let eyeHeight = eyeMat.rows;
+
+    // Try all parameter sets
+    for (let params of paramSets) {
+        let circles = new cv.Mat();
+        try {
+            cv.HoughCircles(
+                blurred, 
+                circles, 
+                cv.HOUGH_GRADIENT,
+                params.dp,           // dp
+                20,                  // minDist
+                params.param1,       // param1
+                params.param2,       // param2
+                params.minRadius,    // minRadius
+                params.maxRadius     // maxRadius
+            );
+
+            // Process detected circles
+            if (circles.cols > 0) {
+                for (let i = 0; i < circles.cols; i++) {
+                    let x = circles.data32F[i * 3];
+                    let y = circles.data32F[i * 3 + 1];
+                    let r = circles.data32F[i * 3 + 2];
+
+                    // Validasi dasar
+                    if (x - r > 0 && x + r < eyeWidth &&
+                        y - r > 0 && y + r < eyeHeight &&
+                        r >= 5 && r <= 50) {
+                        allCircles.push({x: x, y: y, r: r});
+                    }
+                }
+            }
+        } catch(e) {
+            console.log("Error in param set:", params, e);
+        }
+        circles.delete();
+    }
+
+    blurred.delete();
+
+    // Select best circle based on scoring
+    if (allCircles.length === 0) {
         return null;
     }
 
-    let x = circles.data32F[0];
-    let y = circles.data32F[1];
-    let r = circles.data32F[2];
+    let centerX = eyeWidth / 2;
+    let centerY = eyeHeight / 2;
+    let maxDim = Math.max(eyeWidth, eyeHeight);
 
-    eq.delete(); circles.delete();
+    let scoredCircles = allCircles.map(circle => {
+        // Distance to center
+        let distance = Math.sqrt(
+            Math.pow(circle.x - centerX, 2) + 
+            Math.pow(circle.y - centerY, 2)
+        );
 
-    return {x: Math.round(x), y: Math.round(y), r: Math.round(r)};
+        // Center score
+        let centerScore = 1.0 / (1.0 + distance / maxDim);
+
+        // Radius score (prefer 15-35 pixels)
+        let radiusScore;
+        if (circle.r >= 15 && circle.r <= 35) {
+            radiusScore = 1.0;
+        } else if (circle.r >= 10 && circle.r <= 40) {
+            radiusScore = 0.7;
+        } else {
+            radiusScore = 0.3;
+        }
+
+        let totalScore = centerScore * 0.7 + radiusScore * 0.3;
+
+        return {
+            circle: circle,
+            score: totalScore
+        };
+    });
+
+    // Sort by score (highest first)
+    scoredCircles.sort((a, b) => b.score - a.score);
+
+    let bestCircle = scoredCircles[0].circle;
+
+    return {
+        x: Math.round(bestCircle.x), 
+        y: Math.round(bestCircle.y), 
+        r: Math.round(bestCircle.r)
+    };
 }
 
 function showResult(text) {
