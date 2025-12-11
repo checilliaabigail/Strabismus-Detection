@@ -434,7 +434,7 @@ function runAnalysis() {
         drawEyeVisualization(left_eye, pupils[0], "leftEyeCanvas", "Left Eye");
         drawEyeVisualization(right_eye, pupils[1], "rightEyeCanvas", "Right Eye");
 
-        let html = `
+        let htmlOutput = `
             <div class="result-item"><b>Left Pupil:</b> (x: ${pupils[0][0]}, y: ${pupils[0][1]}, r: ${pupils[0][2]})</div>
             <div class="result-item"><b>Right Pupil:</b> (x: ${pupils[1][0]}, y: ${pupils[1][1]}, r: ${pupils[1][2]})</div>
             <div class="result-item"><b>Left Eye Normalized X:</b> ${left_norm.toFixed(3)}</div>
@@ -445,7 +445,7 @@ function runAnalysis() {
                 Nilai dx untuk gambar ini: ${dx.toFixed(6)}
             </div>
         `;
-        showResult(html);
+        showResult(htmlOutput);
     } else {
         console.log("Tidak dapat menghitung perbedaan posisi pupil");
         showResult("❌ Tidak dapat menghitung perbedaan posisi pupil");
