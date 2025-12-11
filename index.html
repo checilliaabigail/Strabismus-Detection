@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Strabismus Detection</title>
-
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -35,7 +34,7 @@
       padding: 20px;
       background: white;
       border-radius: 10px;
-      max-width: 500px;
+      max-width: 800px;
       text-align: left;
     }
     .result-item {
@@ -43,6 +42,18 @@
       padding: 10px;
       background: #f8f9fa;
       border-radius: 5px;
+    }
+    .visualization-container {
+      display: flex;
+      justify-content: space-around;
+      margin: 20px 0;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .eye-canvas {
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      max-width: 300px;
     }
     button {
       background: #007bff;
@@ -60,13 +71,16 @@
       background: #6c757d;
       cursor: not-allowed;
     }
+    h3 {
+      margin-top: 20px;
+      color: #333;
+    }
   </style>
 </head>
 <body>
-
   <h1>🩺 Strabismus Detection</h1>
   <p>Upload eye image for pupil position analysis</p>
-
+  
   <div class="upload-box">
     <p>Select an image</p>
     <input type="file" id="fileInput" accept="image/*" />
@@ -77,24 +91,30 @@
       <p>🔄 Analyzing image... Please wait</p>
     </div>
   </div>
-
+  
   <button id="analyzeBtn" disabled>Analyze Image</button>
-
+  
   <div id="results">
     <h2>📊 Analysis Result</h2>
     <div id="resultContent"></div>
-    <canvas id="outputCanvas"></canvas>
+    
+    <h3>👁️ Eye Detection Visualization</h3>
+    <div class="visualization-container">
+      <div>
+        <h4>Left Eye</h4>
+        <canvas id="leftEyeCanvas"></canvas>
+      </div>
+      <div>
+        <h4>Right Eye</h4>
+        <canvas id="rightEyeCanvas"></canvas>
+      </div>
+    </div>
   </div>
 
-  <!-- ========================================== -->
-  <!--            SCRIPTS DITAMBAHKAN DI SINI       -->
-  <!-- ========================================== -->
-
-  <!-- Load OpenCV.js FIRST -->
+  <!-- Load OpenCV.js -->
   <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady()"></script>
   
-  <!-- Load MAIN logic -->
+  <!-- Load script.js -->
   <script src="script.js"></script>
-
 </body>
 </html>
