@@ -263,21 +263,12 @@ function runAnalysis() {
     let leftEyeRect = eyes[0];
     let rightEyeRect = eyes[1];
 
-    // PENTING: Clone faceGray untuk setiap eye ROI agar tidak corrupt
-    let leftROI = faceGray.roi(new cv.Rect(leftEyeRect.x, leftEyeRect.y, leftEyeRect.width, leftEyeRect.height)).clone();
-    let rightROI = faceGray.roi(new cv.Rect(rightEyeRect.x, rightEyeRect.y, rightEyeRect.width, rightEyeRect.height)).clone();
-
-    console.log("Left Eye ROI size:", leftROI.cols, "x", leftROI.rows);
-    console.log("Right Eye ROI size:", rightROI.cols, "x", rightROI.rows);
+    let leftROI = faceGray.roi(new cv.Rect(leftEyeRect.x, leftEyeRect.y, leftEyeRect.width, leftEyeRect.height));
+    let rightROI = faceGray.roi(new cv.Rect(rightEyeRect.x, rightEyeRect.y, rightEyeRect.width, rightEyeRect.height));
 
     // PUPIL DETECTION
-    console.log("Detecting left pupil...");
     let leftPupil = detectPupilHoughFast(leftROI);
-    console.log("Left pupil result:", leftPupil);
-    
-    console.log("Detecting right pupil...");
     let rightPupil = detectPupilHoughFast(rightROI);
-    console.log("Right pupil result:", rightPupil);
 
     if (!leftPupil || !rightPupil) {
         showResult("❌ Pupil tidak ditemukan.");
@@ -285,21 +276,9 @@ function runAnalysis() {
         return;
     }
 
-    // Normalisasi SAMA seperti Python
-    // left_normalized = left_pupil_x / left_eye_w
-    let leftNorm = leftPupil.x / leftEyeRect.width;
-    let rightNorm = rightPupil.x / rightEyeRect.width;
-    let dx = leftNorm - rightNorm;
-    let avgPos = (leftNorm + rightNorm) / 2;
-
-    console.log("Left Normalized X:", leftNorm);
-    console.log("Right Normalized X:", rightNorm);
-    console.log("Difference (dx):", dx);
-    console.log("Average Position:", avgPos);
-
     // Draw visualizations
-    drawEyeVisualization(leftROI, leftPupil, "leftEyeCanvas", "Left Eye");
-    drawEyeVisualization(rightROI, rightPupil, "rightEyeCanvas", "Right Eye");
+    drawEyeVisualization(leftROI, leftPupil, "leftEyeCanvas");
+    drawEyeVisualization(rightROI, rightPupil, "rightEyeCanvas");
 
     let leftNorm = leftPupil.x / leftROI.cols;
     let rightNorm = rightPupil.x / rightROI.cols;
@@ -310,11 +289,7 @@ function runAnalysis() {
         <div class="result-item"><b>Right Pupil:</b> (x: ${rightPupil.x}, y: ${rightPupil.y}, r: ${rightPupil.r})</div>
         <div class="result-item"><b>Left Normalized X:</b> ${leftNorm.toFixed(3)}</div>
         <div class="result-item"><b>Right Normalized X:</b> ${rightNorm.toFixed(3)}</div>
-        <div class="result-item"><b>Difference (dx):</b> ${dx.toFixed(3)}</div>
-        <div class="result-item"><b>Average Position:</b> ${((leftNorm + rightNorm)/2).toFixed(3)}</div>
-        <div class="result-item" style="margin-top: 15px; font-style: italic;">
-            Nilai dx untuk gambar ini: ${dx.toFixed(6)}
-        </div>
+        <div class="result-item"><b>DX:</b> ${dx.toFixed(3)}</div>
     `;
 
     showResult(html);
@@ -323,23 +298,21 @@ function runAnalysis() {
 }
 
 // ===== Draw Eye Visualization =====
-function drawEyeVisualization(eyeMat, pupil, canvasId, eyeTitle) {
+function drawEyeVisualization(eyeMat, pupil, canvasId) {
     // Convert to RGB for visualization
     let output = new cv.Mat();
     cv.cvtColor(eyeMat, output, cv.COLOR_GRAY2RGB);
 
-    // Draw green circle around pupil (SAMA seperti Python: linewidth=2)
+    // Draw green circle around pupil
     let center = new cv.Point(pupil.x, pupil.y);
     cv.circle(output, center, pupil.r, [0, 255, 0, 255], 2);
     
-    // Draw red dot at center (SAMA seperti Python: size=3)
+    // Draw red dot at center
     cv.circle(output, center, 2, [255, 0, 0, 255], 3);
 
     // Display on canvas
     let canvas = document.getElementById(canvasId);
     cv.imshow(canvas, output);
-
-    console.log(`${eyeTitle} - Pupil at (${pupil.x}, ${pupil.y}) with radius ${pupil.r}`);
 
     output.delete();
 }
