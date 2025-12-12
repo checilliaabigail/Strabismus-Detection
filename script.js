@@ -405,16 +405,25 @@ function runAnalysis() {
 
     // (ex, ey, ew, eh) = eyes[0]; left_eye = face_gray[ey:ey+eh, ex:ex+ew]
     let ex = eyes[0][0], ey = eyes[0][1], ew = eyes[0][2], eh = eyes[0][3];
+    console.log("Left eye ROI:", ex, ey, ew, eh);
     let left_eye = face_gray.roi(new cv.Rect(ex, ey, ew, eh));
+    console.log("Left eye size:", left_eye.cols, "x", left_eye.rows);
 
     // (ex, ey, ew, eh) = eyes[1]; right_eye = face_gray[ey:ey+eh, ex:ex+ew]
     ex = eyes[1][0]; ey = eyes[1][1]; ew = eyes[1][2]; eh = eyes[1][3];
+    console.log("Right eye ROI:", ex, ey, ew, eh);
     let right_eye = face_gray.roi(new cv.Rect(ex, ey, ew, eh));
+    console.log("Right eye size:", right_eye.cols, "x", right_eye.rows);
 
+    console.log("Starting pupil detection...");
+    
     // left_circles = detect_pupil_hough_circle_auto_simple(left_eye, "Left Eye")
     let left_circles = detect_pupil_hough_circle_auto_simple(left_eye, "Left Eye");
+    console.log("Left circles result:", left_circles);
+    
     // right_circles = detect_pupil_hough_circle_auto_simple(right_eye, "Right Eye")
     let right_circles = detect_pupil_hough_circle_auto_simple(right_eye, "Right Eye");
+    console.log("Right circles result:", right_circles);
 
     // pupils = []
     let pupils = [];
