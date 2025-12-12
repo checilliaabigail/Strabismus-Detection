@@ -398,87 +398,105 @@ function runAnalysis() {
     console.log("Final eyes (sorted):", eyes);
 
     if (eyes.length < 2) {
+        console.log("Error: Not enough eyes detected");
         showResult("❌ Mata tidak ditemukan.");
         cleanup(src, gray, face_gray);
         return;
     }
 
-    // (ex, ey, ew, eh) = eyes[0]; left_eye = face_gray[ey:ey+eh, ex:ex+ew]
-    let ex = eyes[0][0], ey = eyes[0][1], ew = eyes[0][2], eh = eyes[0][3];
-    console.log("Left eye ROI:", ex, ey, ew, eh);
-    let left_eye = face_gray.roi(new cv.Rect(ex, ey, ew, eh));
-    console.log("Left eye size:", left_eye.cols, "x", left_eye.rows);
-
-    // (ex, ey, ew, eh) = eyes[1]; right_eye = face_gray[ey:ey+eh, ex:ex+ew]
-    ex = eyes[1][0]; ey = eyes[1][1]; ew = eyes[1][2]; eh = eyes[1][3];
-    console.log("Right eye ROI:", ex, ey, ew, eh);
-    let right_eye = face_gray.roi(new cv.Rect(ex, ey, ew, eh));
-    console.log("Right eye size:", right_eye.cols, "x", right_eye.rows);
-
-    console.log("Starting pupil detection...");
+    console.log("Step 1: Extracting eye ROIs...");
     
-    // left_circles = detect_pupil_hough_circle_auto_simple(left_eye, "Left Eye")
-    let left_circles = detect_pupil_hough_circle_auto_simple(left_eye, "Left Eye");
-    console.log("Left circles result:", left_circles);
-    
-    // right_circles = detect_pupil_hough_circle_auto_simple(right_eye, "Right Eye")
-    let right_circles = detect_pupil_hough_circle_auto_simple(right_eye, "Right Eye");
-    console.log("Right circles result:", right_circles);
+    try {
+        // (ex, ey, ew, eh) = eyes[0]; left_eye = face_gray[ey:ey+eh, ex:ex+ew]
+        let ex = eyes[0][0], ey = eyes[0][1], ew = eyes[0][2], eh = eyes[0][3];
+        console.log("Left eye coordinates:", {x: ex, y: ey, w: ew, h: eh});
+        console.log("Face gray size:", face_gray.cols, "x", face_gray.rows);
+        
+        let left_eye = face_gray.roi(new cv.Rect(ex, ey, ew, eh));
+        console.log("Left eye extracted, size:", left_eye.cols, "x", left_eye.rows);
 
-    // pupils = []
-    let pupils = [];
+        // (ex, ey, ew, eh) = eyes[1]; right_eye = face_gray[ey:ey+eh, ex:ex+ew]
+        ex = eyes[1][0]; ey = eyes[1][1]; ew = eyes[1][2]; eh = eyes[1][3];
+        console.log("Right eye coordinates:", {x: ex, y: ey, w: ew, h: eh});
+        
+        let right_eye = face_gray.roi(new cv.Rect(ex, ey, ew, eh));
+        console.log("Right eye extracted, size:", right_eye.cols, "x", right_eye.rows);
 
-    // if left_circles is not None: pupils.append(tuple(left_circles[0]))
-    if (left_circles !== null) {
-        pupils.push(left_circles[0]);
-    } else {
-        pupils.push([null, null, null]);
+        console.log("Step 2: Starting pupil detection...");
+        
+        // left_circles = detect_pupil_hough_circle_auto_simple(left_eye, "Left Eye")
+        let left_circles = detect_pupil_hough_circle_auto_simple(left_eye, "Left Eye");
+        console.log("Left circles result:", left_circles);
+        
+        // right_circles = detect_pupil_hough_circle_auto_simple(right_eye, "Right Eye")
+        let right_circles = detect_pupil_hough_circle_auto_simple(right_eye, "Right Eye");
+        console.log("Right circles result:", right_circles);
+
+        console.log("Step 3: Processing pupils...");
+        
+        // pupils = []
+        let pupils = [];
+
+        // if left_circles is not None: pupils.append(tuple(left_circles[0]))
+        if (left_circles !== null) {
+            pupils.push(left_circles[0]);
+        } else {
+            pupils.push([null, null, null]);
+        }
+
+        // if right_circles is not None: pupils.append(tuple(right_circles[0]))
+        if (right_circles !== null) {
+            pupils.push(right_circles[0]);
+        } else {
+            pupils.push([null, null, null]);
+        }
+
+        console.log("Pupils:", pupils);
+
+        // result = calculate_pupil_position_difference(pupils, eyes)
+        let result = calculate_pupil_position_difference(pupils, eyes);
+
+        console.log("\n========= PUPIL POSITION DIFFERENCE ANALYSIS =========");
+
+        if (result !== null) {
+            // dx, left_norm, right_norm = result
+            let dx = result[0], left_norm = result[1], right_norm = result[2];
+
+            console.log(`Left Eye Normalized X:  ${left_norm.toFixed(3)}`);
+            console.log(`Right Eye Normalized X: ${right_norm.toFixed(3)}`);
+            console.log(`Difference (dx):        ${dx.toFixed(3)}`);
+            console.log(`Average Position:       ${((left_norm + right_norm) / 2).toFixed(3)}`);
+            console.log(`\nNilai dx untuk gambar ini: ${dx.toFixed(6)}`);
+
+            // Draw visualizations
+            drawEyeVisualization(left_eye, pupils[0], "leftEyeCanvas", "Left Eye");
+            drawEyeVisualization(right_eye, pupils[1], "rightEyeCanvas", "Right Eye");
+
+            let htmlOutput = `
+                <div class="result-item"><b>Left Pupil:</b> (x: ${pupils[0][0]}, y: ${pupils[0][1]}, r: ${pupils[0][2]})</div>
+                <div class="result-item"><b>Right Pupil:</b> (x: ${pupils[1][0]}, y: ${pupils[1][1]}, r: ${pupils[1][2]})</div>
+                <div class="result-item"><b>Left Eye Normalized X:</b> ${left_norm.toFixed(3)}</div>
+                <div class="result-item"><b>Right Eye Normalized X:</b> ${right_norm.toFixed(3)}</div>
+                <div class="result-item"><b>Difference (dx):</b> ${dx.toFixed(3)}</div>
+                <div class="result-item"><b>Average Position:</b> ${((left_norm + right_norm) / 2).toFixed(3)}</div>
+                <div class="result-item" style="margin-top: 15px; font-style: italic;">
+                    Nilai dx untuk gambar ini: ${dx.toFixed(6)}
+                </div>
+            `;
+            showResult(htmlOutput);
+        } else {
+            console.log("Tidak dapat menghitung perbedaan posisi pupil");
+            showResult("❌ Tidak dapat menghitung perbedaan posisi pupil");
+        }
+
+        cleanup(src, gray, face_gray, left_eye, right_eye);
+        
+    } catch(error) {
+        console.error("ERROR during analysis:", error);
+        console.error("Error stack:", error.stack);
+        showResult(`❌ Error: ${error.message}`);
+        cleanup(src, gray, face_gray);
     }
-
-    // if right_circles is not None: pupils.append(tuple(right_circles[0]))
-    if (right_circles !== null) {
-        pupils.push(right_circles[0]);
-    } else {
-        pupils.push([null, null, null]);
-    }
-
-    // result = calculate_pupil_position_difference(pupils, eyes)
-    let result = calculate_pupil_position_difference(pupils, eyes);
-
-    console.log("\n========= PUPIL POSITION DIFFERENCE ANALYSIS =========");
-
-    if (result !== null) {
-        // dx, left_norm, right_norm = result
-        let dx = result[0], left_norm = result[1], right_norm = result[2];
-
-        console.log(`Left Eye Normalized X:  ${left_norm.toFixed(3)}`);
-        console.log(`Right Eye Normalized X: ${right_norm.toFixed(3)}`);
-        console.log(`Difference (dx):        ${dx.toFixed(3)}`);
-        console.log(`Average Position:       ${((left_norm + right_norm) / 2).toFixed(3)}`);
-        console.log(`\nNilai dx untuk gambar ini: ${dx.toFixed(6)}`);
-
-        // Draw visualizations
-        drawEyeVisualization(left_eye, pupils[0], "leftEyeCanvas", "Left Eye");
-        drawEyeVisualization(right_eye, pupils[1], "rightEyeCanvas", "Right Eye");
-
-        let htmlOutput = `
-            <div class="result-item"><b>Left Pupil:</b> (x: ${pupils[0][0]}, y: ${pupils[0][1]}, r: ${pupils[0][2]})</div>
-            <div class="result-item"><b>Right Pupil:</b> (x: ${pupils[1][0]}, y: ${pupils[1][1]}, r: ${pupils[1][2]})</div>
-            <div class="result-item"><b>Left Eye Normalized X:</b> ${left_norm.toFixed(3)}</div>
-            <div class="result-item"><b>Right Eye Normalized X:</b> ${right_norm.toFixed(3)}</div>
-            <div class="result-item"><b>Difference (dx):</b> ${dx.toFixed(3)}</div>
-            <div class="result-item"><b>Average Position:</b> ${((left_norm + right_norm) / 2).toFixed(3)}</div>
-            <div class="result-item" style="margin-top: 15px; font-style: italic;">
-                Nilai dx untuk gambar ini: ${dx.toFixed(6)}
-            </div>
-        `;
-        showResult(htmlOutput);
-    } else {
-        console.log("Tidak dapat menghitung perbedaan posisi pupil");
-        showResult("❌ Tidak dapat menghitung perbedaan posisi pupil");
-    }
-
-    cleanup(src, gray, face_gray, left_eye, right_eye);
 }
 
 function drawEyeVisualization(eye_gray, pupil, canvasId, eye_title) {
