@@ -43,6 +43,22 @@
       background: #f8f9fa;
       border-radius: 5px;
     }
+    .confidence-high {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .confidence-medium {
+      color: #ffc107;
+      font-weight: bold;
+    }
+    .confidence-low {
+      color: #fd7e14;
+      font-weight: bold;
+    }
+    .confidence-failed {
+      color: #dc3545;
+      font-weight: bold;
+    }
     .visualization-container {
       display: flex;
       justify-content: space-around;
@@ -75,11 +91,18 @@
       margin-top: 20px;
       color: #333;
     }
+    .info-box {
+      background: #e8f4fd;
+      border-left: 4px solid #007bff;
+      padding: 10px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
-  <h1>🩺 Strabismus Detection</h1>
-  <p>Upload eye image for pupil position analysis</p>
+  <h1>🩺 Strabismus Detection (Improved Algorithm)</h1>
+  <p>Upload eye image for pupil position analysis using improved detection algorithms</p>
   
   <div class="upload-box">
     <p>Select an image</p>
@@ -89,6 +112,7 @@
     
     <div id="loading">
       <p>🔄 Analyzing image... Please wait</p>
+      <p><small>Running improved face, eye, and pupil detection algorithms...</small></p>
     </div>
   </div>
   
@@ -101,13 +125,23 @@
     <h3>👁️ Eye Detection Visualization</h3>
     <div class="visualization-container">
       <div>
-        <h4>Left Eye</h4>
-        <canvas id="leftEyeCanvas"></canvas>
+        <h4>Left Eye <span id="leftEyeConfidence"></span></h4>
+        <canvas id="leftEyeCanvas" class="eye-canvas"></canvas>
       </div>
       <div>
-        <h4>Right Eye</h4>
-        <canvas id="rightEyeCanvas"></canvas>
+        <h4>Right Eye <span id="rightEyeConfidence"></span></h4>
+        <canvas id="rightEyeCanvas" class="eye-canvas"></canvas>
       </div>
+    </div>
+    
+    <div class="info-box">
+      <h4>📝 Algorithm Information:</h4>
+      <ul>
+        <li><b>Improved Face Detection:</b> Multiple parameter tuning with aspect ratio validation</li>
+        <li><b>Improved Eye Detection:</b> Non-overlap validation and area scoring</li>
+        <li><b>Enhanced Pupil Detection:</b> Hough Transform with CLAHE preprocessing and intensity validation</li>
+        <li><b>Confidence Scoring:</b> Based on pupil intensity (dark = high confidence)</li>
+      </ul>
     </div>
   </div>
 
