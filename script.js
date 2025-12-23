@@ -1,464 +1,597 @@
-let faceCascade, eyeCascade;
-let cvReady = false;
-let cascadesReady = false;
+// Global variables
+let cv = null;
+let faceCascade = null;
+let eyeCascade = null;
+let isOpenCvReady = false;
 
-// OpenCV initialization
-function onOpenCvReady() {
-    console.log("OpenCV loading...");
-    
-    let checkInterval = setInterval(() => {
-        if (typeof cv !== 'undefined' && cv.Mat && cv.CascadeClassifier) {
-            clearInterval(checkInterval);
-            console.log("✅ OpenCV is ready!");
-            cvReady = true;
-            loadCascadeFilesSequential();
-        }
-    }, 100);
+// Log functions
+function addLog(message, type = 'info') {
+    const logContainer = document.getElementById('logContainer');
+    const logItem = document.createElement('div');
+    logItem.className = `log-item ${type}`;
+    logItem.textContent = message;
+    logContainer.appendChild(logItem);
+    console.log(message);
 }
 
-function loadCascadeFilesSequential() {
-    console.log("Loading Haar Cascades...");
+function showStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('status');
+    statusDiv.textContent = message;
+    statusDiv.className = `status ${type}`;
+    statusDiv.style.display = 'block';
+}
+
+function showLoader(show) {
+    document.getElementById('loader').classList.toggle('active', show);
+}
+
+// OpenCV ready callback
+function onOpenCvReady() {
+    cv = window.cv;
+    isOpenCvReady = true;
+    console.log('OpenCV.js is ready!');
+    showStatus('✅ OpenCV.js berhasil dimuat. Silakan upload gambar.', 'success');
     
-    loadCascade("haarcascade_frontalface_default.xml", (classifier) => {
-        faceCascade = classifier;
-        console.log("✅ Face cascade loaded");
-        
-        loadCascade("haarcascade_eye.xml", (classifier) => {
-            eyeCascade = classifier;
-            console.log("✅ Eye cascade loaded");
-            cascadesReady = true;
-            console.log("✅ All cascades ready!");
-        });
+    // Load Haar Cascades
+    loadHaarCascades();
+}
+
+// Load Haar Cascade files
+function loadHaarCascades() {
+    // Load face cascade
+    let faceCascadeFile = 'haarcascade_frontalface_default.xml';
+    let eyeCascadeFile = 'haarcascade_eye.xml';
+    
+    createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {
+        faceCascade = new cv.CascadeClassifier();
+        faceCascade.load(faceCascadeFile);
+        addLog('✅ Face cascade loaded', 'success');
+    });
+    
+    createFileFromUrl(eyeCascadeFile, eyeCascadeFile, () => {
+        eyeCascade = new cv.CascadeClassifier();
+        eyeCascade.load(eyeCascadeFile);
+        addLog('✅ Eye cascade loaded', 'success');
     });
 }
 
-function loadCascade(filename, callback) {
-    let xhr = new XMLHttpRequest();
-    xhr.open("GET", filename, true);
-    xhr.responseType = "arraybuffer";
-
-    xhr.onload = () => {
-        if (xhr.status === 200) {
-            let data = new Uint8Array(xhr.response);
-            cv.FS_createDataFile("/", filename, data, true, false, false);
-            let classifier = new cv.CascadeClassifier();
-            classifier.load(filename);
-            callback(classifier);
-        } else {
-            console.error("Failed to load:", filename);
+function createFileFromUrl(path, url, callback) {
+    let request = new XMLHttpRequest();
+    request.open('GET', url, true);
+    request.responseType = 'arraybuffer';
+    request.onload = function() {
+        if (request.readyState === 4) {
+            if (request.status === 200) {
+                let data = new Uint8Array(request.response);
+                cv.FS_createDataFile('/', path, data, true, false, false);
+                callback();
+            } else {
+                addLog('❌ Failed to load ' + path, 'error');
+            }
         }
     };
-    xhr.send();
+    request.send();
 }
 
-// DOM Elements
-const fileInput = document.getElementById("fileInput");
-const filePreview = document.getElementById("filePreview");
-const analyzeBtn = document.getElementById("analyzeBtn");
-const loadingDiv = document.getElementById("loading");
-const resultBox = document.getElementById("results");
-const resultContent = document.getElementById("resultContent");
-
-fileInput.addEventListener("change", () => {
-    let file = fileInput.files[0];
+// File input handler
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    if (!isOpenCvReady) {
+        showStatus('⏳ Tunggu OpenCV.js selesai loading...', 'warning');
+        return;
+    }
+    
+    const file = e.target.files[0];
     if (!file) return;
-    filePreview.src = URL.createObjectURL(file);
-    filePreview.style.display = "block";
-    analyzeBtn.disabled = false;
+    
+    // Clear previous results
+    document.getElementById('logContainer').innerHTML = '';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('resultBox').style.display = 'none';
+    
+    showLoader(true);
+    showStatus('📤 Memuat gambar...', 'info');
+    
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+            processImage(img);
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
 });
 
-// ===== FUNGSI UTAMA DARI PYTHON (DIUBAH KE JAVASCRIPT) =====
+// Main image processing function
+function processImage(img) {
+    try {
+        addLog('🔄 Memulai proses deteksi...', 'info');
+        
+        // Show results section
+        document.getElementById('results').style.display = 'block';
+        
+        // Step 1: Load and display original image
+        let src = cv.imread(img);
+        addLog(`📊 Ukuran gambar: ${src.cols}x${src.rows}`, 'info');
+        cv.imshow('originalCanvas', src);
+        
+        // Step 2: Convert to grayscale
+        let gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+        cv.imshow('grayCanvas', gray);
+        addLog('✅ Konversi ke grayscale berhasil', 'success');
+        
+        // Step 3: Face detection with automatic parameter tuning
+        addLog('🔍 Mencari wajah dengan berbagai kombinasi parameter...', 'info');
+        const faceResult = improvedFaceDetection(gray);
+        
+        if (!faceResult) {
+            showStatus('❌ Tidak dapat mendeteksi wajah pada gambar', 'error');
+            addLog('❌ Tidak ada wajah terdeteksi dengan semua kombinasi parameter', 'error');
+            showLoader(false);
+            src.delete();
+            gray.delete();
+            return;
+        }
+        
+        const { face, faceGray, params: faceParams } = faceResult;
+        addLog(`✅ Wajah terdeteksi!`, 'success');
+        addLog(`   Parameter terbaik: scaleFactor=${faceParams.scaleFactor}, minNeighbors=${faceParams.minNeighbors}, minSize=${faceParams.minSize}`, 'info');
+        addLog(`📊 Info Wajah:`, 'info');
+        addLog(`   Posisi: x=${face.x}, y=${face.y}`, 'info');
+        addLog(`   Ukuran: width=${face.width}, height=${face.height}`, 'info');
+        
+        // Display face detection result
+        let faceImg = src.clone();
+        cv.rectangle(faceImg, new cv.Point(face.x, face.y), 
+                     new cv.Point(face.x + face.width, face.y + face.height),
+                     [0, 255, 0, 255], 3);
+        cv.imshow('faceCanvas', faceImg);
+        faceImg.delete();
+        
+        // Display cropped face
+        cv.imshow('croppedFaceCanvas', faceGray);
+        
+        // Step 4: Eye detection
+        addLog('🔍 Mencari mata dengan berbagai kombinasi parameter...', 'info');
+        const eyeResult = improvedEyeDetection(faceGray);
+        
+        if (!eyeResult || eyeResult.eyes.length < 2) {
+            showStatus('❌ Tidak dapat mendeteksi 2 mata pada wajah', 'error');
+            addLog('❌ Tidak dapat mendeteksi 2 mata', 'error');
+            showLoader(false);
+            src.delete();
+            gray.delete();
+            faceGray.delete();
+            return;
+        }
+        
+        const { eyes, params: eyeParams } = eyeResult;
+        addLog(`✅ Kedua mata terdeteksi!`, 'success');
+        addLog(`   Parameter terbaik: scaleFactor=${eyeParams.scaleFactor}, minNeighbors=${eyeParams.minNeighbors}, minSize=${eyeParams.minSize}`, 'info');
+        
+        // Sort eyes from left to right
+        eyes.sort((a, b) => a.x - b.x);
+        addLog(`📊 Info Mata:`, 'info');
+        addLog(`   Mata kiri: (${eyes[0].x}, ${eyes[0].y}, ${eyes[0].width}, ${eyes[0].height})`, 'info');
+        addLog(`   Mata kanan: (${eyes[1].x}, ${eyes[1].y}, ${eyes[1].width}, ${eyes[1].height})`, 'info');
+        
+        // Display eyes on face
+        let faceWithEyes = new cv.Mat();
+        cv.cvtColor(faceGray, faceWithEyes, cv.COLOR_GRAY2RGBA);
+        for (let eye of eyes) {
+            cv.rectangle(faceWithEyes, new cv.Point(eye.x, eye.y),
+                        new cv.Point(eye.x + eye.width, eye.y + eye.height),
+                        [255, 0, 0, 255], 2);
+        }
+        cv.imshow('eyesCanvas', faceWithEyes);
+        faceWithEyes.delete();
+        
+        // Extract left and right eyes
+        let leftEye = faceGray.roi(new cv.Rect(eyes[0].x, eyes[0].y, eyes[0].width, eyes[0].height));
+        let rightEye = faceGray.roi(new cv.Rect(eyes[1].x, eyes[1].y, eyes[1].width, eyes[1].height));
+        
+        cv.imshow('leftEyeCanvas', leftEye);
+        cv.imshow('rightEyeCanvas', rightEye);
+        
+        // Step 5: Pupil detection using Hough Transform
+        addLog('🔍 Mendeteksi pupil menggunakan Hough Transform...', 'info');
+        
+        const leftPupilResult = detectPupilWithFallback(leftEye, 'Left Eye');
+        const rightPupilResult = detectPupilWithFallback(rightEye, 'Right Eye');
+        
+        addLog(`\nConfidence: Left=${leftPupilResult.confidence}, Right=${rightPupilResult.confidence}`, 'info');
+        
+        // Visualize pupil detection results
+        visualizeResult(leftEye, leftPupilResult.circle, 'Left Eye', leftPupilResult.confidence, 'leftPupilCanvas');
+        visualizeResult(rightEye, rightPupilResult.circle, 'Right Eye', rightPupilResult.confidence, 'rightPupilCanvas');
+        
+        // Step 6: Calculate pupil position difference
+        addLog('\n' + '='.repeat(60), 'info');
+        addLog('PUPIL POSITION DIFFERENCE ANALYSIS', 'info');
+        addLog('='.repeat(60), 'info');
+        
+        const pupils = [leftPupilResult.circle, rightPupilResult.circle];
+        const positionResult = calculatePupilPositionDifference(pupils, eyes);
+        
+        if (positionResult) {
+            const { dx, leftNorm, rightNorm } = positionResult;
+            
+            addLog(`Left Eye Normalized X:  ${leftNorm.toFixed(3)}`, 'info');
+            addLog(`Right Eye Normalized X: ${rightNorm.toFixed(3)}`, 'info');
+            addLog(`Difference (dx):        ${dx.toFixed(3)}`, 'info');
+            addLog(`Average Position:       ${((leftNorm + rightNorm)/2).toFixed(3)}`, 'info');
+            
+            addLog(`\nNilai dx untuk gambar ini: ${dx.toFixed(6)}`, 'success');
+            
+            // Interpretation
+            let diagnosis = '';
+            let diagnosisClass = '';
+            
+            if (dx < -0.05) {
+                diagnosis = 'ESOTROPIA (mata menyerong ke dalam)';
+                diagnosisClass = 'error';
+                addLog('\n💡 Interpretasi: → Kemungkinan ESOTROPIA (mata menyerong ke dalam)', 'warning');
+            } else if (dx > 0.05) {
+                diagnosis = 'EXOTROPIA (mata menyerong ke luar)';
+                diagnosisClass = 'warning';
+                addLog('\n💡 Interpretasi: → Kemungkinan EXOTROPIA (mata menyerong ke luar)', 'warning');
+            } else {
+                diagnosis = 'NORMAL';
+                diagnosisClass = 'success';
+                addLog('\n💡 Interpretasi: → Kemungkinan NORMAL', 'success');
+            }
+            
+            // Display final result
+            const resultBox = document.getElementById('resultBox');
+            const resultDetails = document.getElementById('resultDetails');
+            
+            resultDetails.innerHTML = `
+                <p><strong>Posisi Pupil Mata Kiri (normalized):</strong> ${leftNorm.toFixed(3)}</p>
+                <p><strong>Posisi Pupil Mata Kanan (normalized):</strong> ${rightNorm.toFixed(3)}</p>
+                <p><strong>Perbedaan Posisi (dx):</strong> ${dx.toFixed(6)}</p>
+                <p><strong>Posisi Rata-rata:</strong> ${((leftNorm + rightNorm)/2).toFixed(3)}</p>
+                <p><strong>Confidence Deteksi Kiri:</strong> <span class="confidence-badge confidence-${leftPupilResult.confidence}">${leftPupilResult.confidence.toUpperCase()}</span></p>
+                <p><strong>Confidence Deteksi Kanan:</strong> <span class="confidence-badge confidence-${rightPupilResult.confidence}">${rightPupilResult.confidence.toUpperCase()}</span></p>
+                <div class="diagnosis">${diagnosis}</div>
+            `;
+            
+            resultBox.style.display = 'block';
+            showStatus(`✅ Proses selesai! Diagnosis: ${diagnosis}`, diagnosisClass);
+            
+        } else {
+            addLog('Tidak dapat menghitung perbedaan posisi pupil', 'error');
+            showStatus('❌ Tidak dapat menghitung perbedaan posisi pupil', 'error');
+        }
+        
+        addLog('='.repeat(60), 'info');
+        
+        // Cleanup
+        src.delete();
+        gray.delete();
+        faceGray.delete();
+        leftEye.delete();
+        rightEye.delete();
+        
+        showLoader(false);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showStatus('❌ Terjadi kesalahan: ' + error.message, 'error');
+        addLog('❌ Error: ' + error.message, 'error');
+        showLoader(false);
+    }
+}
 
-// ========================================
-// IMPROVED FACE DETECTION (AUTO PARAMETER)
-// ========================================
-function improved_face_detection(gray) {
-    console.log("🔍 Mencari wajah dengan berbagai kombinasi parameter...");
-
-    // Parameter yang akan dicoba (SAMA PERSIS dengan Python)
+// ================================================================================
+// IMPROVED FACE DETECTION (sama persis dengan Python)
+// ================================================================================
+function improvedFaceDetection(gray) {
+    // Parameter yang akan dicoba (sama dengan Python)
     const scaleFactors = [1.05, 1.1, 1.15, 1.2];
-    const minNeighbors_list = [3, 4, 5, 6];
-    const minSizes = [
-        new cv.Size(50, 50),
-        new cv.Size(60, 60),
-        new cv.Size(80, 80),
-        new cv.Size(100, 100)
-    ];
-
-    let best_face = null;
-    let best_score = -1;
-    let best_params = null;
-
+    const minNeighborsList = [3, 4, 5, 6];
+    const minSizes = [[50, 50], [60, 60], [80, 80], [100, 100]];
+    
+    let bestFace = null;
+    let bestScore = -1;
+    let bestParams = null;
+    
     for (let sf of scaleFactors) {
-        for (let mn of minNeighbors_list) {
+        for (let mn of minNeighborsList) {
             for (let ms of minSizes) {
                 let faces = new cv.RectVector();
+                faceCascade.detectMultiScale(
+                    gray,
+                    faces,
+                    sf,          // scaleFactor
+                    mn,          // minNeighbors
+                    0,           // flags
+                    new cv.Size(ms[0], ms[1]),  // minSize
+                    new cv.Size(0, 0)           // maxSize
+                );
                 
-                try {
-                    faceCascade.detectMultiScale(
-                        gray, faces, sf, mn, 0, ms
-                    );
-
-                    if (faces.size() > 0) {
-                        // Ambil wajah dengan area terbesar
-                        let facesList = [];
-                        for (let i = 0; i < faces.size(); i++) {
-                            let face = faces.get(i);
-                            facesList.push({
-                                x: face.x,
-                                y: face.y,
-                                width: face.width,
-                                height: face.height,
-                                area: face.width * face.height
-                            });
-                        }
-                        facesList.sort((a, b) => b.area - a.area);
-                        
-                        let fx = facesList[0].x, fy = facesList[0].y;
-                        let fw = facesList[0].width, fh = facesList[0].height;
-
-                        // Hitung score berdasarkan area dan rasio aspek (SAMA dengan Python)
-                        let area = fw * fh;
-                        let aspect_ratio = fw / fh;
-                        let aspect_penalty = Math.abs(1.0 - aspect_ratio);
-                        let score = area * (1 - aspect_penalty * 0.5);
-
-                        if (score > best_score) {
-                            best_score = score;
-                            best_face = [Math.round(fx), Math.round(fy), Math.round(fw), Math.round(fh)];
-                            best_params = [sf, mn, [ms.width, ms.height]];
-                        }
+                if (faces.size() > 0) {
+                    // Ambil wajah dengan area terbesar
+                    let facesSorted = [];
+                    for (let i = 0; i < faces.size(); i++) {
+                        let face = faces.get(i);
+                        facesSorted.push({
+                            x: face.x,
+                            y: face.y,
+                            width: face.width,
+                            height: face.height,
+                            area: face.width * face.height
+                        });
                     }
-                } catch(e) {
-                    continue;
+                    facesSorted.sort((a, b) => b.area - a.area);
+                    
+                    let face = facesSorted[0];
+                    
+                    // Hitung score berdasarkan area dan rasio aspek
+                    let area = face.width * face.height;
+                    let aspectRatio = face.width / face.height;
+                    
+                    // Rasio aspek ideal wajah sekitar 0.75-1.3
+                    let aspectPenalty = Math.abs(1.0 - aspectRatio);
+                    let score = area * (1 - aspectPenalty * 0.5);
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestFace = face;
+                        bestParams = {
+                            scaleFactor: sf,
+                            minNeighbors: mn,
+                            minSize: `(${ms[0]}, ${ms[1]})`
+                        };
+                    }
                 }
                 
                 faces.delete();
             }
         }
     }
-
-    if (best_face === null) {
-        console.log("❌ Tidak ada wajah terdeteksi dengan semua kombinasi parameter");
-        return [null, null, null];
+    
+    if (!bestFace) {
+        return null;
     }
-
-    console.log("✅ Wajah terdeteksi!");
-    console.log("   Parameter terbaik: scaleFactor=" + best_params[0] + 
-                ", minNeighbors=" + best_params[1] + 
-                ", minSize=" + best_params[2]);
-
-    let [fx, fy, fw, fh] = best_face;
-
-    // Crop wajah (setengah atas untuk area mata) - SAMA dengan Python
-    let face_roi = new cv.Rect(fx, fy, fw, Math.floor(fh/2));
-    let face_gray = gray.roi(face_roi);
-
-    return [best_face, face_gray, best_params];
+    
+    // Crop wajah (setengah atas untuk area mata)
+    let faceGray = gray.roi(new cv.Rect(
+        bestFace.x,
+        bestFace.y,
+        bestFace.width,
+        Math.floor(bestFace.height / 2)
+    ));
+    
+    return {
+        face: bestFace,
+        faceGray: faceGray,
+        params: bestParams
+    };
 }
 
-// ========================================
-// IMPROVED EYE DETECTION (AUTO PARAMETER)
-// ========================================
-function improved_eye_detection(gray) {
-    console.log("🔍 Mencari mata dengan berbagai kombinasi parameter...");
-
-    // Parameter yang lebih sensitif untuk gambar close-up (SAMA PERSIS dengan Python)
+// ================================================================================
+// IMPROVED EYE DETECTION (sama persis dengan Python)
+// ================================================================================
+function improvedEyeDetection(gray) {
+    // Parameter yang lebih sensitif untuk gambar close-up (sama dengan Python)
     const scaleFactors = [1.01, 1.02, 1.05, 1.1];
-    const minNeighbors_list = [1, 2, 3];
-    const minSizes = [
-        new cv.Size(10, 10),
-        new cv.Size(15, 15),
-        new cv.Size(20, 20),
-        new cv.Size(25, 25)
-    ];
-
-    let best_eyes = null;
-    let best_score = -1;
-    let best_params = null;
-
+    const minNeighborsList = [1, 2, 3];
+    const minSizes = [[10, 10], [15, 15], [20, 20], [25, 25]];
+    
+    let bestEyes = null;
+    let bestScore = -1;
+    let bestParams = null;
+    
     for (let sf of scaleFactors) {
-        for (let mn of minNeighbors_list) {
+        for (let mn of minNeighborsList) {
             for (let ms of minSizes) {
                 let eyes = new cv.RectVector();
+                eyeCascade.detectMultiScale(
+                    gray,
+                    eyes,
+                    sf,          // scaleFactor
+                    mn,          // minNeighbors
+                    0,           // flags
+                    new cv.Size(ms[0], ms[1]),  // minSize
+                    new cv.Size(0, 0)           // maxSize
+                );
                 
-                try {
-                    eyeCascade.detectMultiScale(
-                        gray, eyes, sf, mn, 0, ms
-                    );
-
-                    // Filter: hanya ambil 2 mata dengan area terbesar
-                    if (eyes.size() >= 2) {
-                        let areas = [];
-                        for (let i = 0; i < eyes.size(); i++) {
-                            let eye = eyes.get(i);
-                            areas.push([eye.x, eye.y, eye.width, eye.height, eye.width * eye.height]);
-                        }
-                        
-                        areas.sort((a, b) => b[4] - a[4]);
-                        let areas_sorted = areas.slice(0, 2);
-
-                        // Pastikan kedua mata tidak tumpang tindih
-                        let eye1 = areas_sorted[0].slice(0, 4);
-                        let eye2 = areas_sorted[1].slice(0, 4);
-                        
-                        let x1 = eye1[0], y1 = eye1[1], w1 = eye1[2], h1 = eye1[3];
-                        let x2 = eye2[0], y2 = eye2[1], w2 = eye2[2], h2 = eye2[3];
-
-                        // Hitung overlap (SAMA dengan Python)
-                        let dx = Math.min(x1 + w1, x2 + w2) - Math.max(x1, x2);
-                        let dy = Math.min(y1 + h1, y2 + h2) - Math.max(y1, y2);
-
-                        if (dx <= 0 || dy <= 0) {  // Tidak overlap
-                            let score = areas_sorted[0][4] + areas_sorted[1][4];
-                            if (score > best_score) {
-                                best_score = score;
-                                best_eyes = [
-                                    [Math.round(eye1[0]), Math.round(eye1[1]), Math.round(eye1[2]), Math.round(eye1[3])],
-                                    [Math.round(eye2[0]), Math.round(eye2[1]), Math.round(eye2[2]), Math.round(eye2[3])]
-                                ];
-                                best_params = [sf, mn, [ms.width, ms.height]];
-                            }
+                // Filter: hanya ambil 2 mata dengan area terbesar
+                if (eyes.size() >= 2) {
+                    let eyesList = [];
+                    for (let i = 0; i < eyes.size(); i++) {
+                        let eye = eyes.get(i);
+                        eyesList.push({
+                            x: eye.x,
+                            y: eye.y,
+                            width: eye.width,
+                            height: eye.height,
+                            area: eye.width * eye.height
+                        });
+                    }
+                    eyesList.sort((a, b) => b.area - a.area);
+                    
+                    let eye1 = eyesList[0];
+                    let eye2 = eyesList[1];
+                    
+                    // Pastikan kedua mata tidak tumpang tindih
+                    let dx = Math.min(eye1.x + eye1.width, eye2.x + eye2.width) - Math.max(eye1.x, eye2.x);
+                    let dy = Math.min(eye1.y + eye1.height, eye2.y + eye2.height) - Math.max(eye1.y, eye2.y);
+                    
+                    if (dx <= 0 || dy <= 0) {  // Tidak overlap
+                        let score = eye1.area + eye2.area;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestEyes = [eye1, eye2];
+                            bestParams = {
+                                scaleFactor: sf,
+                                minNeighbors: mn,
+                                minSize: `(${ms[0]}, ${ms[1]})`
+                            };
                         }
                     }
-                } catch(e) {
-                    console.log("Error in eye detection params:", e);
                 }
                 
                 eyes.delete();
             }
         }
     }
-
-    if (best_eyes === null || best_eyes.length < 2) {
-        console.log("❌ Tidak dapat mendeteksi 2 mata");
-        return [[], null];
-    }
-
-    console.log("✅ Kedua mata terdeteksi!");
-    console.log("   Parameter terbaik: scaleFactor=" + best_params[0] + 
-                ", minNeighbors=" + best_params[1] + 
-                ", minSize=" + best_params[2]);
-
-    return [best_eyes, best_params];
-}
-
-// ========================================
-// IMPROVED PUPIL DETECTION (HOUGH TRANSFORM)
-// ========================================
-function detect_pupil_improved(eye_region, eye_name = "Eye", debug = false) {
-    if (!eye_region || eye_region.rows === 0 || eye_region.cols === 0) {
-        console.log(`\n❌ ${eye_name}: Region mata kosong`);
+    
+    if (!bestEyes || bestEyes.length < 2) {
         return null;
     }
-
-    let h = eye_region.rows, w = eye_region.cols;
-    console.log(`\n${'='*60}`);
-    console.log(`Deteksi Pupil: ${eye_name}`);
-    console.log(`${'='*60}`);
-    console.log(`Ukuran eye region: ${w} x ${h} px`);
-
-    // ========================================
-    // PREPROCESSING UNTUK ISOLASI PUPIL
-    // ========================================
-
-    // 1. Gaussian blur untuk noise reduction
-    let blurred = new cv.Mat();
-    cv.GaussianBlur(eye_region, blurred, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-
-    // 2. CLAHE untuk enhance contrast
-    let clahe = new cv.CLAHE();
-    clahe.setClipLimit(2.0);
-    clahe.setTilesGridSize(new cv.Size(8, 8));
     
-    let enhanced = new cv.Mat();
-    clahe.apply(blurred, enhanced);
-
-    // 3. Binary threshold
-    let binary = new cv.Mat();
-    cv.threshold(enhanced, binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-    
-    let binary_inv = new cv.Mat();
-    cv.bitwise_not(binary, binary_inv);
-
-    // 4. Morphological closing untuk fill small holes
-    let kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(5, 5));
-    let cleaned = new cv.Mat();
-    cv.morphologyEx(binary_inv, cleaned, cv.MORPH_CLOSE, kernel);
-
-    // Estimasi ukuran pupil (12-25% dari lebar eye region) - SAMA dengan Python
-    let min_radius = Math.max(5, Math.floor(w * 0.12));
-    let max_radius = Math.min(Math.floor(w * 0.25), 40);
-
-    console.log(`Estimasi radius pupil: ${min_radius}-${max_radius} px`);
-
-    let center_x = Math.floor(w / 2);
-    let center_y = Math.floor(h / 2);
-
-    // ========================================
-    // DETEKSI DENGAN MULTIPLE STRATEGIES
-    // ========================================
-
-    let strategies = [
-        { name: "Enhanced", img: enhanced },
-        { name: "Binary", img: cleaned }
-    ];
-
-    let best_circle = null;
-    let best_score = -1;
-    let best_strategy = null;
-
-    for (let strategy of strategies) {
-        // Parameter combinations (SAMA dengan Python)
-        let params_list = [
-            { dp: 1.2, minDist: 15, param1: 50, param2: 30 },  // Konservatif
-            { dp: 1.1, minDist: 15, param1: 50, param2: 25 },  // Balanced
-            { dp: 1.1, minDist: 12, param1: 45, param2: 22 },  // Lebih sensitif
-            { dp: 1.2, minDist: 15, param1: 40, param2: 28 },  // Alternative
-        ];
-
-        for (let params of params_list) {
-            try {
-                let circles = new cv.Mat();
-                cv.HoughCircles(
-                    strategy.img,
-                    circles,
-                    cv.HOUGH_GRADIENT,
-                    params.dp,
-                    params.minDist,
-                    params.param1,
-                    params.param2,
-                    min_radius,
-                    max_radius
-                );
-
-                if (circles.cols > 0) {
-                    for (let i = 0; i < circles.cols; i++) {
-                        let x = Math.round(circles.data32F[i * 3]);
-                        let y = Math.round(circles.data32F[i * 3 + 1]);
-                        let r = Math.round(circles.data32F[i * 3 + 2]);
-
-                        // Validasi 1: Dalam batas
-                        if (x - r < 0 || x + r > w || y - r < 0 || y + r > h) {
-                            continue;
-                        }
-
-                        // Validasi 2: Tidak terlalu dekat dengan tepi
-                        let edge_margin = 5;
-                        if (x < edge_margin || x > w - edge_margin || 
-                            y < edge_margin || y > h - edge_margin) {
-                            continue;
-                        }
-
-                        // ========================================
-                        // SCORING DENGAN VALIDASI KETAT (SAMA dengan Python)
-                        // ========================================
-
-                        // 1. Kedekatan dengan center (40%)
-                        let dist = Math.sqrt((x - center_x) ** 2 + (y - center_y) ** 2);
-                        let center_score = 1.0 / (1.0 + dist / (w * 0.25));
-
-                        // 2. Intensitas - PUPIL HARUS GELAP! (40%)
-                        let mask = new cv.Mat.zeros(h, w, cv.CV_8UC1);
-                        cv.circle(mask, new cv.Point(x, y), r, new cv.Scalar(255), -1);
-                        
-                        let mean_intensity = cv.mean(eye_region, mask)[0];
-                        
-                        // ⚠️ KRITERIA KETAT: Pupil harus < 80 intensity (SAMA dengan Python)
-                        if (mean_intensity > 100) {
-                            mask.delete();
-                            continue;
-                        }
-
-                        // Semakin gelap semakin baik
-                        let intensity_score = Math.max(0, 1.0 - (mean_intensity / 80.0));
-
-                        // 3. Ukuran radius (15%)
-                        let optimal_r = (min_radius + max_radius) / 2;
-                        let size_score = 1.0 - Math.abs(r - optimal_r) / max_radius;
-
-                        // 4. Variance intensitas (5%) - pupil homogen
-                        // Note: OpenCV.js tidak punya std dev langsung, kita gunakan approximation
-                        let variance_score = 1.0 / (1.0 + mean_intensity / 50.0);
-
-                        // Total score (WEIGHT SAMA dengan Python)
-                        let score = (
-                            center_score * 0.40 +
-                            intensity_score * 0.40 +
-                            size_score * 0.15 +
-                            variance_score * 0.05
-                        );
-
-                        console.log(`  [${strategy.name}] x=${x}, y=${y}, r=${r}, intensity=${mean_intensity.toFixed(1)}, score=${score.toFixed(3)}`);
-
-                        if (score > best_score) {
-                            best_score = score;
-                            best_circle = [x, y, r];
-                            best_strategy = strategy.name;
-                        }
-
-                        mask.delete();
-                    }
-                }
-                circles.delete();
-            } catch(e) {
-                continue;
-            }
-        }
-    }
-
-    // Cleanup mats
-    blurred.delete();
-    enhanced.delete();
-    binary.delete();
-    binary_inv.delete();
-    cleaned.delete();
-    clahe.delete();
-
-    // ========================================
-    // HASIL
-    // ========================================
-
-    if (best_circle) {
-        let [x, y, r] = best_circle;
-        
-        // Hitung final intensity untuk validasi
-        let mask = new cv.Mat.zeros(h, w, cv.CV_8UC1);
-        cv.circle(mask, new cv.Point(x, y), r, new cv.Scalar(255), -1);
-        let final_intensity = cv.mean(eye_region, mask)[0];
-        mask.delete();
-
-        console.log(`\n✅ TERPILIH [${best_strategy}]:`);
-        console.log(`   Position: (${x}, ${y})`);
-        console.log(`   Radius: ${r} px`);
-        console.log(`   Intensity: ${final_intensity.toFixed(1)}`);
-        console.log(`   Score: ${best_score.toFixed(3)}`);
-
-        // Warning jika intensity masih tinggi (SAMA dengan Python)
-        if (final_intensity > 80) {
-            console.log(`   ⚠️  WARNING: Intensity tinggi! Mungkin bukan pupil.`);
-        }
-    } else {
-        console.log(`\n❌ Tidak ada pupil terdeteksi`);
-    }
-
-    return best_circle;
+    return {
+        eyes: bestEyes,
+        params: bestParams
+    };
 }
 
-function detect_pupil_with_fallback(eye_region, eye_name = "Eye") {
-    // Try improved detection first
-    let circle = detect_pupil_improved(eye_region, eye_name, false);
-
-    if (circle) {
-        // Hitung confidence berdasarkan intensity (SAMA dengan Python)
-        let [x, y, r] = circle;
-        let h = eye_region.rows, w = eye_region.cols;
+// ================================================================================
+// HOUGH TRANSFORM PUPIL DETECTION (sama persis dengan Python)
+// ================================================================================
+function detectPupilImproved(eyeRegion, eyeName = "Eye", debug = false) {
+    const strategies = {
+        // Strategy 1: Threshold Simple
+        'threshold_simple': (eye) => {
+            let processed = new cv.Mat();
+            cv.threshold(eye, processed, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+            return processed;
+        },
         
-        let mask = new cv.Mat.zeros(h, w, cv.CV_8UC1);
-        cv.circle(mask, new cv.Point(x, y), r, new cv.Scalar(255), -1);
-        let intensity = cv.mean(eye_region, mask)[0];
+        // Strategy 2: Adaptive Threshold
+        'adaptive_threshold': (eye) => {
+            let processed = new cv.Mat();
+            cv.adaptiveThreshold(eye, processed, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                cv.THRESH_BINARY_INV, 11, 2);
+            return processed;
+        },
+        
+        // Strategy 3: Histogram Equalization + Threshold
+        'hist_eq': (eye) => {
+            let equalized = new cv.Mat();
+            cv.equalizeHist(eye, equalized);
+            let processed = new cv.Mat();
+            cv.threshold(equalized, processed, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+            equalized.delete();
+            return processed;
+        },
+        
+        // Strategy 4: Gaussian Blur + Threshold
+        'blur_threshold': (eye) => {
+            let blurred = new cv.Mat();
+            cv.GaussianBlur(eye, blurred, new cv.Size(5, 5), 0);
+            let processed = new cv.Mat();
+            cv.threshold(blurred, processed, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+            blurred.delete();
+            return processed;
+        },
+        
+        // Strategy 5: Morphological Opening
+        'morph_open': (eye) => {
+            let processed = new cv.Mat();
+            cv.threshold(eye, processed, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU);
+            let kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+            cv.morphologyEx(processed, processed, cv.MORPH_OPEN, kernel);
+            kernel.delete();
+            return processed;
+        }
+    };
+    
+    let bestCircle = null;
+    let bestScore = -1;
+    let bestStrategy = '';
+    
+    for (let [strategyName, strategyFunc] of Object.entries(strategies)) {
+        try {
+            let processed = strategyFunc(eyeRegion);
+            
+            // Hough Circle Detection (parameter sama dengan Python)
+            let circles = new cv.Mat();
+            cv.HoughCircles(
+                processed,
+                circles,
+                cv.HOUGH_GRADIENT,
+                1,                    // dp
+                eyeRegion.rows / 8,   // minDist
+                100,                  // param1
+                15,                   // param2
+                Math.floor(eyeRegion.cols * 0.15),  // minRadius
+                Math.floor(eyeRegion.cols * 0.4)    // maxRadius
+            );
+            
+            if (circles.cols > 0) {
+                // Evaluasi setiap circle
+                for (let i = 0; i < circles.cols; i++) {
+                    let x = circles.data32F[i * 3];
+                    let y = circles.data32F[i * 3 + 1];
+                    let r = circles.data32F[i * 3 + 2];
+                    
+                    // Hitung intensitas rata-rata dalam circle
+                    let mask = cv.Mat.zeros(eyeRegion.rows, eyeRegion.cols, cv.CV_8UC1);
+                    cv.circle(mask, new cv.Point(x, y), r, [255, 255, 255, 255], -1);
+                    let meanIntensity = cv.mean(eyeRegion, mask)[0];
+                    mask.delete();
+                    
+                    // Score: prioritaskan intensitas rendah (gelap)
+                    let intensityScore = Math.max(0, 100 - meanIntensity) / 100;
+                    let radiusScore = r / eyeRegion.cols;  // radius relatif
+                    let centerScore = 1.0 - (Math.abs(x - eyeRegion.cols/2) / (eyeRegion.cols/2));
+                    
+                    let score = intensityScore * 0.6 + radiusScore * 0.2 + centerScore * 0.2;
+                    
+                    // Filter: intensitas harus di bawah threshold
+                    if (meanIntensity < 100 && score > bestScore) {
+                        bestScore = score;
+                        bestCircle = [Math.round(x), Math.round(y), Math.round(r)];
+                        bestStrategy = strategyName;
+                    }
+                }
+            }
+            
+            circles.delete();
+            processed.delete();
+            
+        } catch (e) {
+            continue;
+        }
+    }
+    
+    if (bestCircle) {
+        let [x, y, r] = bestCircle;
+        let mask = cv.Mat.zeros(eyeRegion.rows, eyeRegion.cols, cv.CV_8UC1);
+        cv.circle(mask, new cv.Point(x, y), r, [255, 255, 255, 255], -1);
+        let finalIntensity = cv.mean(eyeRegion, mask)[0];
         mask.delete();
+        
+        addLog(`\n✅ TERPILIH [${bestStrategy}]:`, 'success');
+        addLog(`   Position: (${x}, ${y})`, 'info');
+        addLog(`   Radius: ${r} px`, 'info');
+        addLog(`   Intensity: ${finalIntensity.toFixed(1)}`, 'info');
+        addLog(`   Score: ${bestScore.toFixed(3)}`, 'info');
+        
+        if (finalIntensity > 80) {
+            addLog(`   ⚠️  WARNING: Intensity tinggi! Mungkin bukan pupil.`, 'warning');
+        }
+    } else {
+        addLog(`\n❌ Tidak ada pupil terdeteksi`, 'error');
+        addLog(`   Tip: Coba enable debug=True untuk lihat preprocessing`, 'info');
+    }
+    
+    return bestCircle;
+}
 
+function detectPupilWithFallback(eyeRegion, eyeName = "Eye") {
+    let circle = detectPupilImproved(eyeRegion, eyeName, false);
+    
+    if (circle) {
+        // Check confidence based on intensity
+        let mask = cv.Mat.zeros(eyeRegion.rows, eyeRegion.cols, cv.CV_8UC1);
+        cv.circle(mask, new cv.Point(circle[0], circle[1]), circle[2], [255, 255, 255, 255], -1);
+        let intensity = cv.mean(eyeRegion, mask)[0];
+        mask.delete();
+        
         let confidence;
         if (intensity < 60) {
             confidence = "high";
@@ -467,215 +600,23 @@ function detect_pupil_with_fallback(eye_region, eye_name = "Eye") {
         } else {
             confidence = "low";
         }
-
+        
         return { circle, confidence };
     }
-
+    
     return { circle: null, confidence: "failed" };
 }
 
-// ========================================
-// CALCULATE PUPIL POSITION DIFFERENCE
-// ========================================
-function calculate_pupil_position_difference(pupils, eyes) {
-    if (pupils[0].circle === null || pupils[1].circle === null) {
-        console.log("Pupil tidak terdeteksi pada salah satu atau kedua mata");
-        return null;
-    }
-
-    // Extract pupil x positions and eye widths
-    let left_pupil_x = pupils[0].circle[0];
-    let right_pupil_x = pupils[1].circle[0];
-
-    let left_eye_w = eyes[0][2];
-    let right_eye_w = eyes[1][2];
-
-    // Normalize pupil positions within their respective eye bounding boxes
-    let left_normalized = left_pupil_x / left_eye_w;
-    let right_normalized = right_pupil_x / right_eye_w;
-
-    // Hitung perbedaan posisi antara kedua pupil
-    let dx = left_normalized - right_normalized;
-
-    return { dx, left_normalized, right_normalized };
-}
-
-// ========================================
-// MAIN ANALYSIS FLOW
-// ========================================
-analyzeBtn.addEventListener("click", () => {
-    if (!cvReady || !cascadesReady || !faceCascade || !eyeCascade) {
-        alert("⏳ Tunggu OpenCV dan cascades siap.");
-        return;
-    }
-
-    loadingDiv.style.display = "block";
-    resultBox.style.display = "none";
-
-    setTimeout(runAnalysis, 200);
-});
-
-function runAnalysis() {
-    // Load image
-    let img = filePreview;
-    let src = cv.imread(img);
+function visualizeResult(eyeRegion, circle, eyeName, confidence, canvasId) {
+    if (!eyeRegion) return;
     
-    console.log("Image loaded - Size:", src.cols, "x", src.rows, "Channels:", src.channels());
-    
-    // Convert to grayscale
-    let gray = new cv.Mat();
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    
-    console.log("Gray image - Size:", gray.cols, "x", gray.rows);
-
-    // Step 1: Improved Face Detection
-    console.log("\n" + "="*60);
-    console.log("STEP 1: IMPROVED FACE DETECTION");
-    console.log("="*60);
-    
-    let [face_coords, face_gray, face_params] = improved_face_detection(gray);
-
-    if (face_coords === null) {
-        showResult("❌ Gagal lanjut ke eye detection karena wajah tidak ditemukan.");
-        cleanup(src, gray);
-        return;
-    }
-
-    let [fx, fy, fw, fh] = face_coords;
-    console.log(`✅ Wajah terdeteksi: x=${fx}, y=${fy}, w=${fw}, h=${fh}`);
-    console.log(`📊 Parameter terbaik: scaleFactor=${face_params[0]}, minNeighbors=${face_params[1]}`);
-
-    // Step 2: Improved Eye Detection
-    console.log("\n" + "="*60);
-    console.log("STEP 2: IMPROVED EYE DETECTION");
-    console.log("="*60);
-    
-    let [eyes_in_face, eye_params] = improved_eye_detection(face_gray);
-
-    if (eyes_in_face.length < 2) {
-        console.log("Error: Not enough eyes detected");
-        showResult("❌ Mata tidak ditemukan.");
-        cleanup(src, gray, face_gray);
-        return;
-    }
-
-    // Sort mata dari kiri ke kanan
-    let eyes = eyes_in_face.sort((a, b) => a[0] - b[0]);
-    console.log("Final eyes (sorted):", eyes);
-
-    console.log(`📊 Info Mata:`);
-    console.log(`   Mata kiri: [${eyes[0]}]`);
-    console.log(`   Mata kanan: [${eyes[1]}]`);
-
-    // Step 3: Extract Eye ROIs
-    console.log("\n" + "="*60);
-    console.log("STEP 3: EXTRACT EYE REGIONS");
-    console.log("="*60);
-    
-    try {
-        // Left eye
-        let left_eye_rect = new cv.Rect(eyes[0][0], eyes[0][1], eyes[0][2], eyes[0][3]);
-        let left_eye = face_gray.roi(left_eye_rect);
-        console.log("Left eye extracted, size:", left_eye.cols, "x", left_eye.rows);
-
-        // Right eye
-        let right_eye_rect = new cv.Rect(eyes[1][0], eyes[1][1], eyes[1][2], eyes[1][3]);
-        let right_eye = face_gray.roi(right_eye_rect);
-        console.log("Right eye extracted, size:", right_eye.cols, "x", right_eye.rows);
-
-        // Step 4: Improved Pupil Detection
-        console.log("\n" + "="*60);
-        console.log("STEP 4: IMPROVED PUPIL DETECTION");
-        console.log("="*60);
-        
-        let left_result = detect_pupil_with_fallback(left_eye, "Left Eye");
-        let right_result = detect_pupil_with_fallback(right_eye, "Right Eye");
-
-        console.log(`\nConfidence: Left=${left_result.confidence}, Right=${right_result.confidence}`);
-
-        let pupils = [left_result, right_result];
-
-        // Step 5: Calculate Pupil Position Difference
-        console.log("\n" + "="*60);
-        console.log("STEP 5: PUPIL POSITION DIFFERENCE ANALYSIS");
-        console.log("="*60);
-        
-        let result = calculate_pupil_position_difference(pupils, eyes);
-
-        if (result !== null) {
-            let { dx, left_normalized, right_normalized } = result;
-            let dx_value = dx;
-
-            console.log(`Left Eye Normalized X:  ${left_normalized.toFixed(3)}`);
-            console.log(`Right Eye Normalized X: ${right_normalized.toFixed(3)}`);
-            console.log(`Difference (dx):        ${dx.toFixed(3)}`);
-            console.log(`Average Position:       ${((left_normalized + right_normalized) / 2).toFixed(3)}`);
-            console.log(`\nNilai dx untuk gambar ini: ${dx_value.toFixed(6)}`);
-
-            // Visualisasi
-            visualize_eye_result(left_eye, left_result, "leftEyeCanvas", "Left Eye", left_result.confidence);
-            visualize_eye_result(right_eye, right_result, "rightEyeCanvas", "Right Eye", right_result.confidence);
-
-            // Interpretasi (SAMA dengan Python)
-            let interpretation = "";
-            if (dx < -0.05) {
-                interpretation = "→ Kemungkinan ESOTROPIA (mata menyerong ke dalam)";
-            } else if (dx > 0.05) {
-                interpretation = "→ Kemungkinan EXOTROPIA (mata menyerong ke luar)";
-            } else {
-                interpretation = "→ Kemungkinan NORMAL";
-            }
-
-            let htmlOutput = `
-                <div class="result-item"><b>Left Pupil:</b> (x: ${left_result.circle ? left_result.circle[0] : 'N/A'}, 
-                y: ${left_result.circle ? left_result.circle[1] : 'N/A'}, 
-                r: ${left_result.circle ? left_result.circle[2] : 'N/A'}) 
-                <span style="color: ${getConfidenceColor(left_result.confidence)}">[${left_result.confidence}]</span></div>
-                
-                <div class="result-item"><b>Right Pupil:</b> (x: ${right_result.circle ? right_result.circle[0] : 'N/A'}, 
-                y: ${right_result.circle ? right_result.circle[1] : 'N/A'}, 
-                r: ${right_result.circle ? right_result.circle[2] : 'N/A'}) 
-                <span style="color: ${getConfidenceColor(right_result.confidence)}">[${right_result.confidence}]</span></div>
-                
-                <div class="result-item"><b>Left Eye Normalized X:</b> ${left_normalized.toFixed(3)}</div>
-                <div class="result-item"><b>Right Eye Normalized X:</b> ${right_normalized.toFixed(3)}</div>
-                <div class="result-item"><b>Difference (dx):</b> ${dx.toFixed(3)}</div>
-                <div class="result-item"><b>Average Position:</b> ${((left_normalized + right_normalized) / 2).toFixed(3)}</div>
-                
-                <div class="result-item" style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-left: 4px solid #007bff;">
-                    <b>💡 Interpretasi:</b><br>
-                    ${interpretation}<br>
-                    <small style="color: #666;">(Gunakan threshold yang sudah Anda tentukan untuk klasifikasi final)</small>
-                </div>
-                
-                <div class="result-item" style="margin-top: 15px; font-style: italic; color: #007bff;">
-                    Nilai dx untuk gambar ini: ${dx_value.toFixed(6)}
-                </div>
-            `;
-            showResult(htmlOutput);
-        } else {
-            console.log("Tidak dapat menghitung perbedaan posisi pupil");
-            showResult("❌ Tidak dapat menghitung perbedaan posisi pupil");
-        }
-
-        cleanup(src, gray, face_gray, left_eye, right_eye);
-        
-    } catch(error) {
-        console.error("ERROR during analysis:", error);
-        console.error("Error stack:", error.stack);
-        showResult(`❌ Error: ${error.message}`);
-        cleanup(src, gray, face_gray);
-    }
-}
-
-function visualize_eye_result(eye_region, result, canvasId, eye_name, confidence) {
     let output = new cv.Mat();
-    cv.cvtColor(eye_region, output, cv.COLOR_GRAY2RGB);
-
-    if (result.circle !== null) {
-        let [x, y, r] = result.circle;
-
-        // Warna berdasarkan confidence (SAMA dengan Python)
+    cv.cvtColor(eyeRegion, output, cv.COLOR_GRAY2RGBA);
+    
+    if (circle) {
+        let [x, y, r] = circle;
+        
+        // Warna berdasarkan confidence
         let color;
         if (confidence === "high") {
             color = [0, 255, 0, 255];  // Hijau
@@ -686,41 +627,48 @@ function visualize_eye_result(eye_region, result, canvasId, eye_name, confidence
         } else {
             color = [0, 255, 0, 255];  // Default hijau
         }
-
+        
         cv.circle(output, new cv.Point(x, y), r, color, 2);
         cv.circle(output, new cv.Point(x, y), 2, [255, 0, 0, 255], 3);
-
-        // Add confidence label
-        let label = `Conf: ${confidence}`;
-        cv.putText(output, label, new cv.Point(5, 15), 
-                  cv.FONT_HERSHEY_SIMPLEX, 0.4, [255, 255, 255, 255], 1);
+        
+        // Add label
+        if (confidence) {
+            cv.putText(output, `Conf: ${confidence}`, new cv.Point(5, 15),
+                      cv.FONT_HERSHEY_SIMPLEX, 0.4, [255, 255, 255, 255], 1);
+        }
     }
-
-    let canvas = document.getElementById(canvasId);
-    cv.imshow(canvas, output);
+    
+    cv.imshow(canvasId, output);
     output.delete();
 }
 
-function getConfidenceColor(confidence) {
-    switch(confidence) {
-        case "high": return "#28a745";
-        case "medium": return "#ffc107";
-        case "low": return "#fd7e14";
-        case "failed": return "#dc3545";
-        default: return "#6c757d";
+// ================================================================================
+// CALCULATE PUPIL POSITION DIFFERENCE (sama persis dengan Python)
+// ================================================================================
+function calculatePupilPositionDifference(pupils, eyes) {
+    if (!pupils[0] || !pupils[1]) {
+        addLog("Pupil tidak terdeteksi pada salah satu atau kedua mata", 'error');
+        return null;
     }
-}
-
-function showResult(text) {
-    loadingDiv.style.display = "none";
-    resultBox.style.display = "block";
-    resultContent.innerHTML = text;
-}
-
-function cleanup(...mats) {
-    mats.forEach(m => {
-        if (m && m.delete) {
-            m.delete();
-        }
-    });
+    
+    // Extract pupil x positions
+    let leftPupilX = pupils[0][0];
+    let rightPupilX = pupils[1][0];
+    
+    // Extract eye widths
+    let leftEyeW = eyes[0].width;
+    let rightEyeW = eyes[1].width;
+    
+    // Normalize pupil positions within their respective eye bounding boxes
+    let leftNormalized = leftPupilX / leftEyeW;   // 0 = kiri, 1 = kanan
+    let rightNormalized = rightPupilX / rightEyeW; // 0 = kiri, 1 = kanan
+    
+    // Hitung perbedaan posisi antara kedua pupil
+    let dx = leftNormalized - rightNormalized;
+    
+    return {
+        dx: dx,
+        leftNorm: leftNormalized,
+        rightNorm: rightNormalized
+    };
 }
