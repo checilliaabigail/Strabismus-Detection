@@ -223,7 +223,7 @@ function improved_eye_detection(face_gray) {
 }
 
 // ========================================
-// PUPIL DETECTION (SIMPLE HOUGH - FIXED)
+// PUPIL DETECTION (SIMPLE HOUGH - FIXED & MATCH PYTHON)
 // ========================================
 function detect_pupil_hough_simple(eye_gray, eye_name = "Eye") {
     console.log(`\n${eye_name} PUPIL DETECTION`);
@@ -236,12 +236,11 @@ function detect_pupil_hough_simple(eye_gray, eye_name = "Eye") {
     let h = eye_gray.rows, w = eye_gray.cols;
     console.log(`Ukuran: ${w}x${h}`);
     
-    // 1. Gaussian Blur
+    // 1. Gaussian Blur - SAMA dengan Python: (7,7), 2
     let blurred = new cv.Mat();
     cv.GaussianBlur(eye_gray, blurred, new cv.Size(7, 7), 2, 2, cv.BORDER_DEFAULT);
     
-    // 2. Hough Circles dengan berbagai parameter
-    let circles = new cv.Mat();
+    // 2. PARAMETER HOUGH SAMA DENGAN PYTHON
     let param_sets = [
         {dp: 1.1, minDist: 20, param1: 80, param2: 20, minR: 15, maxR: 40},
         {dp: 1.0, minDist: 20, param1: 60, param2: 15, minR: 10, maxR: 45},
@@ -250,11 +249,11 @@ function detect_pupil_hough_simple(eye_gray, eye_name = "Eye") {
         {dp: 1.0, minDist: 20, param1: 90, param2: 30, minR: 8, maxR: 30}
     ];
     
-    let best_circle = null;
-    let best_score = -1;
+    let all_circles = []; // Simpan semua circle yang valid
     
     for (let params of param_sets) {
         try {
+            let circles = new cv.Mat();
             cv.HoughCircles(
                 blurred,
                 circles,
@@ -268,55 +267,106 @@ function detect_pupil_hough_simple(eye_gray, eye_name = "Eye") {
             );
             
             if (circles.cols > 0) {
+                console.log(`  Ditemukan ${circles.cols} lingkaran dengan params: dp=${params.dp}`);
+                
                 // Process all detected circles
                 for (let i = 0; i < circles.cols; i++) {
                     let x = Math.round(circles.data32F[i * 3]);
                     let y = Math.round(circles.data32F[i * 3 + 1]);
                     let r = Math.round(circles.data32F[i * 3 + 2]);
                     
-                    // Validate position
+                    // Validasi posisi (dalam bounds)
                     if (x - r > 0 && x + r < w && y - r > 0 && y + r < h) {
-                        // Calculate intensity of the circle area
-                        let mask = new cv.Mat.zeros(h, w, cv.CV_8UC1);
-                        cv.circle(mask, new cv.Point(x, y), r, new cv.Scalar(255), -1);
-                        let mean_intensity = cv.mean(eye_gray, mask)[0];
-                        mask.delete();
-                        
-                        // Score based on center position and intensity
-                        let center_x = Math.floor(w / 2);
-                        let center_y = Math.floor(h / 2);
-                        let dist = Math.sqrt((x - center_x) ** 2 + (y - center_y) ** 2);
-                        let center_score = 1.0 / (1.0 + dist / Math.max(w, h));
-                        
-                        // Intensity score (darker is better)
-                        let intensity_score = Math.max(0, 1.0 - (mean_intensity / 100.0));
-                        
-                        // Total score
-                        let score = center_score * 0.7 + intensity_score * 0.3;
-                        
-                        if (score > best_score && mean_intensity < 100) {
-                            best_score = score;
-                            best_circle = [x, y, r];
+                        // Validasi radius (5-50 seperti di Python)
+                        if (r >= 5 && r <= 50) {
+                            all_circles.push([x, y, r]);
                         }
                     }
                 }
             }
+            circles.delete();
         } catch(e) {
             console.log(`Error dengan params:`, e);
+            continue;
         }
     }
     
-    // Cleanup
+    // Cleanup blurred image
     blurred.delete();
-    circles.delete();
     
-    if (best_circle) {
-        console.log(`✅ Pupil terdeteksi: ${best_circle}`);
-        return best_circle;
+    console.log(`Total circles found: ${all_circles.length}`);
+    
+    // Jika ada circles yang terdeteksi, pilih yang terbaik dengan scoring
+    let best_circle = null;
+    
+    if (all_circles.length > 0) {
+        let center_x = Math.floor(w / 2);
+        let center_y = Math.floor(h / 2);
+        
+        let scored_circles = [];
+        
+        // SCORING SYSTEM SAMA DENGAN PYTHON
+        for (let circle of all_circles) {
+            let x = circle[0], y = circle[1], r = circle[2];
+            
+            // Hitung intensitas area circle
+            let mask = new cv.Mat.zeros(h, w, cv.CV_8UC1);
+            cv.circle(mask, new cv.Point(x, y), r, new cv.Scalar(255), -1);
+            let mean_intensity = cv.mean(eye_gray, mask)[0];
+            mask.delete();
+            
+            // ========================================
+            // SCORING SAMA PERSIS DENGAN PYTHON
+            // ========================================
+            
+            // 1. Center score (40%) - semakin dekat center semakin baik
+            let distance = Math.sqrt((x - center_x) ** 2 + (y - center_y) ** 2);
+            let center_score = 1.0 / (1.0 + distance / Math.max(w, h));
+            
+            // 2. Radius score (prefer 15-35 pixels)
+            let radius_score;
+            if (r >= 15 && r <= 35) {
+                radius_score = 1.0;
+            } else if (r >= 10 && r <= 40) {
+                radius_score = 0.7;
+            } else {
+                radius_score = 0.3;
+            }
+            
+            // 3. Intensity check - pupil harus gelap
+            // Di Python ada validasi: if mean_intensity > 100: continue
+            if (mean_intensity > 100) {
+                // Skip jika terlalu terang
+                continue;
+            }
+            
+            // 4. Total score (70% center, 30% radius) - SAMA dengan Python
+            let total_score = center_score * 0.7 + radius_score * 0.3;
+            
+            scored_circles.push({
+                score: total_score,
+                circle: [x, y, r],
+                intensity: mean_intensity
+            });
+            
+            console.log(`  Circle: (${x}, ${y}, r=${r}) intensity=${mean_intensity.toFixed(1)}, score=${total_score.toFixed(3)}`);
+        }
+        
+        // Sort by score descending (terbaik pertama)
+        scored_circles.sort((a, b) => b.score - a.score);
+        
+        if (scored_circles.length > 0) {
+            best_circle = scored_circles[0].circle;
+            console.log(`✅ Pupil terdeteksi: ${best_circle}, score=${scored_circles[0].score.toFixed(3)}, intensity=${scored_circles[0].intensity.toFixed(1)}`);
+        }
     }
     
-    console.log("❌ Tidak ada pupil terdeteksi");
-    return null;
+    if (!best_circle) {
+        console.log("❌ Tidak ada pupil terdeteksi");
+        return null;
+    }
+    
+    return best_circle;
 }
 
 // ========================================
