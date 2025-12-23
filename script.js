@@ -243,9 +243,11 @@ function detect_pupil_hough_simple(eye_gray, eye_name = "Eye") {
     // 2. Hough Circles dengan berbagai parameter
     let circles = new cv.Mat();
     let param_sets = [
-        {dp: 1.0, minDist: 20, param1: 40, param2: 15, minR: 5, maxR: Math.floor(w/2)},
-        {dp: 1.1, minDist: 20, param1: 50, param2: 20, minR: 5, maxR: Math.floor(w/2)},
-        {dp: 1.2, minDist: 25, param1: 60, param2: 25, minR: 5, maxR: Math.floor(w/2)}
+        {dp: 1.1, minDist: 20, param1: 80, param2: 20, minR: 15, maxR: 40},
+        {dp: 1.0, minDist: 20, param1: 60, param2: 15, minR: 10, maxR: 45},
+        {dp: 0.9, minDist: 20, param1: 40, param2: 10, minR: 5, maxR: 50},
+        {dp: 1.2, minDist: 20, param1: 100, param2: 25, minR: 20, maxR: 35},
+        {dp: 1.0, minDist: 20, param1: 90, param2: 30, minR: 8, maxR: 30}
     ];
     
     let best_circle = null;
