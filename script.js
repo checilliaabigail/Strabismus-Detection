@@ -141,24 +141,57 @@ function detect_face_improved(gray) {
 }
 
 // ========================================
-// IMPROVED EYE DETECTION (FIXED)
+// HELPER: EXPAND EYE BOX
+// ========================================
+function expand_eye_box(eye, img_shape, scale_w = 1.35, scale_h = 1.2) {
+    /**
+     * Perluas bounding box mata agar mencakup ujung ke ujung mata
+     * @param {Array} eye - [x, y, w, h]
+     * @param {Object} img_shape - {height, width}
+     * @param {Number} scale_w - Scale untuk width (default 1.35)
+     * @param {Number} scale_h - Scale untuk height (default 1.2)
+     * @returns {Array} - [x_new, y_new, w_new, h_new]
+     */
+    let [x, y, w, h] = eye;
+    let cx = x + Math.floor(w / 2);
+    let cy = y + Math.floor(h / 2);
+    
+    let new_w = Math.floor(w * scale_w);
+    let new_h = Math.floor(h * scale_h);
+    
+    let x_new = Math.max(0, cx - Math.floor(new_w / 2));
+    let y_new = Math.max(0, cy - Math.floor(new_h / 2));
+    
+    // Pastikan tidak melewati batas gambar
+    x_new = Math.min(x_new, img_shape.width - new_w);
+    y_new = Math.min(y_new, img_shape.height - new_h);
+    
+    return [x_new, y_new, new_w, new_h];
+}
+
+// ========================================
+// IMPROVED EYE DETECTION (FINAL VERSION)
 // ========================================
 function improved_eye_detection(face_gray) {
     console.log("\n" + "="*60);
     console.log("EYE DETECTION");
     console.log("="*60);
     
-    const scaleFactors = [1.01, 1.02, 1.05, 1.1];
-    const minNeighbors_list = [1, 2, 3];
+    const H = face_gray.rows;
+    const W = face_gray.cols;
+    
+    // Parameter yang lebih fokus dan stabil
+    const scaleFactors = [1.02, 1.05, 1.1];
+    const minNeighbors_list = [2, 3];
     const minSizes = [
-        new cv.Size(10, 10),
         new cv.Size(15, 15),
         new cv.Size(20, 20),
         new cv.Size(25, 25)
     ];
     
-    let best_eyes = null;
+    let best_pair = null;
     let best_score = -1;
+    let best_params = null;
     
     for (let sf of scaleFactors) {
         for (let mn of minNeighbors_list) {
@@ -167,40 +200,55 @@ function improved_eye_detection(face_gray) {
                 
                 eyeCascade.detectMultiScale(face_gray, eyes, sf, mn, 0, ms);
                 
-                if (eyes.size() >= 2) {
-                    // Convert to array with area
-                    let eyesArray = [];
-                    for (let i = 0; i < eyes.size(); i++) {
-                        let eye = eyes.get(i);
-                        eyesArray.push({
-                            x: eye.x,
-                            y: eye.y,
-                            w: eye.width,
-                            h: eye.height,
-                            area: eye.width * eye.height
-                        });
-                    }
+                if (eyes.size() < 2) {
+                    eyes.delete();
+                    continue;
+                }
+                
+                // Konversi ke array dengan pusat dan area
+                let candidates = [];
+                for (let i = 0; i < eyes.size(); i++) {
+                    let eye = eyes.get(i);
+                    let x = eye.x;
+                    let y = eye.y;
+                    let w = eye.width;
+                    let h = eye.height;
+                    let cx = x + w / 2;
+                    let cy = y + h / 2;
+                    let area = w * h;
                     
-                    // Sort by area descending
-                    eyesArray.sort((a, b) => b.area - a.area);
-                    let top2 = eyesArray.slice(0, 2);
-                    
-                    // Check if eyes don't overlap (like in Python)
-                    let eye1 = top2[0];
-                    let eye2 = top2[1];
-                    
-                    let dx = Math.min(eye1.x + eye1.w, eye2.x + eye2.w) - Math.max(eye1.x, eye2.x);
-                    let dy = Math.min(eye1.y + eye1.h, eye2.y + eye2.h) - Math.max(eye1.y, eye2.y);
-                    
-                    if (dx <= 0 || dy <= 0) { // No overlap
-                        let score = eye1.area + eye2.area;
+                    candidates.push({
+                        x: x, y: y, w: w, h: h,
+                        cx: cx, cy: cy, area: area
+                    });
+                }
+                
+                // Coba semua pasangan mata
+                for (let i = 0; i < candidates.length; i++) {
+                    for (let j = i + 1; j < candidates.length; j++) {
+                        let e1 = candidates[i];
+                        let e2 = candidates[j];
+                        
+                        // Constraint 1: Horizontal separation (harus kiri-kanan)
+                        if (Math.abs(e1.cx - e2.cx) < 0.25 * W) {
+                            continue;
+                        }
+                        
+                        // Constraint 2: Vertical alignment (harus sejajar)
+                        if (Math.abs(e1.cy - e2.cy) > 0.15 * H) {
+                            continue;
+                        }
+                        
+                        // Score = total area
+                        let score = e1.area + e2.area;
                         
                         if (score > best_score) {
                             best_score = score;
-                            best_eyes = [
-                                [Math.round(eye1.x), Math.round(eye1.y), Math.round(eye1.w), Math.round(eye1.h)],
-                                [Math.round(eye2.x), Math.round(eye2.y), Math.round(eye2.w), Math.round(eye2.h)]
+                            best_pair = [
+                                [e1.x, e1.y, e1.w, e1.h],
+                                [e2.x, e2.y, e2.w, e2.h]
                             ];
+                            best_params = {sf: sf, mn: mn, ms: ms};
                         }
                     }
                 }
@@ -210,16 +258,28 @@ function improved_eye_detection(face_gray) {
         }
     }
     
-    if (best_eyes === null) {
-        console.log("❌ Mata tidak terdeteksi");
+    if (best_pair === null) {
+        console.log("❌ Gagal mendeteksi pasangan mata");
         return [[], null];
     }
     
-    // Sort eyes from left to right
-    best_eyes.sort((a, b) => a[0] - b[0]);
-    console.log(`✅ Mata terdeteksi: Kiri=${best_eyes[0]}, Kanan=${best_eyes[1]}`);
+    // Sort kiri → kanan
+    best_pair.sort((a, b) => a[0] - b[0]);
     
-    return [best_eyes, null];
+    console.log("✅ Mata terdeteksi dengan stabil");
+    console.log(`   Parameter terbaik: scaleFactor=${best_params.sf}, minNeighbors=${best_params.mn}, minSize=${best_params.ms.width}x${best_params.ms.height}`);
+    
+    // EXPAND BOUNDING BOX (KUNCI PERBAIKAN!)
+    let img_shape = {height: H, width: W};
+    let left_eye_expanded = expand_eye_box(best_pair[0], img_shape);
+    let right_eye_expanded = expand_eye_box(best_pair[1], img_shape);
+    
+    let final_eyes = [left_eye_expanded, right_eye_expanded];
+    
+    console.log(`   Original boxes: Kiri=${best_pair[0]}, Kanan=${best_pair[1]}`);
+    console.log(`   Expanded boxes: Kiri=${final_eyes[0]}, Kanan=${final_eyes[1]}`);
+    
+    return [final_eyes, best_params];
 }
 
 // ========================================
