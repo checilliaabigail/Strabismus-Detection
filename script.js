@@ -240,13 +240,39 @@ function detect_pupil_hough_simple(eye_gray, eye_name = "Eye") {
     let blurred = new cv.Mat();
     cv.GaussianBlur(eye_gray, blurred, new cv.Size(7, 7), 2, 2, cv.BORDER_DEFAULT);
     
-    // 2. PARAMETER HOUGH SAMA DENGAN PYTHON
+    // 2. PARAMETER HOUGH DARI ANALISIS PDF
+    // Radius dinamis berdasarkan ukuran eye region (seperti di Python)
+    let min_radius = Math.max(5, Math.floor(w * 0.12));
+    let max_radius = Math.min(Math.floor(w * 0.25), 40);
+    
+    console.log(`Estimasi radius pupil: ${min_radius}-${max_radius} px`);
+    
     let param_sets = [
-        {dp: 1.1, minDist: 20, param1: 80, param2: 20, minR: 15, maxR: 40},
-        {dp: 1.0, minDist: 20, param1: 60, param2: 15, minR: 10, maxR: 45},
-        {dp: 0.9, minDist: 20, param1: 40, param2: 10, minR: 5, maxR: 50},
-        {dp: 1.2, minDist: 20, param1: 100, param2: 25, minR: 20, maxR: 35},
-        {dp: 1.0, minDist: 20, param1: 90, param2: 30, minR: 8, maxR: 30}
+        // EXOTROPIA parameters
+        {dp: 1.15, minDist: 48, param1: 78, param2: 17, minR: min_radius, maxR: max_radius},
+        {dp: 1.1, minDist: 50, param1: 80, param2: 20, minR: min_radius, maxR: max_radius},
+        {dp: 1.2, minDist: 45, param1: 75, param2: 15, minR: min_radius, maxR: max_radius},
+        
+        // NORMAL parameters
+        {dp: 1.14, minDist: 52, param1: 75, param2: 18, minR: min_radius, maxR: max_radius},
+        {dp: 1.1, minDist: 50, param1: 80, param2: 18, minR: min_radius, maxR: max_radius},
+        {dp: 1.2, minDist: 55, param1: 70, param2: 18, minR: min_radius, maxR: max_radius},
+        
+        // ESOTROPIA parameters
+        {dp: 1.13, minDist: 67, param1: 80, param2: 16, minR: min_radius, maxR: max_radius},
+        {dp: 1.1, minDist: 70, param1: 80, param2: 15, minR: min_radius, maxR: max_radius},
+        {dp: 1.2, minDist: 65, param1: 80, param2: 17, minR: min_radius, maxR: max_radius},
+        
+        // GABUNGAN (fallback)
+        {dp: 1.14, minDist: 56, param1: 78, param2: 17, minR: min_radius, maxR: max_radius},
+        {dp: 1.1, minDist: 60, param1: 80, param2: 17, minR: min_radius, maxR: max_radius},
+        {dp: 1.2, minDist: 55, param1: 75, param2: 17, minR: min_radius, maxR: max_radius},
+        
+        // Ekstrem dari dataset
+        {dp: 1.1, minDist: 20, param1: 80, param2: 20, minR: min_radius, maxR: max_radius},
+        {dp: 1.1, minDist: 70, param1: 90, param2: 15, minR: min_radius, maxR: max_radius},
+        {dp: 1.2, minDist: 60, param1: 60, param2: 10, minR: min_radius, maxR: max_radius},
+        {dp: 1.1, minDist: 50, param1: 110, param2: 27, minR: min_radius, maxR: max_radius}
     ];
     
     let all_circles = []; // Simpan semua circle yang valid
@@ -277,8 +303,8 @@ function detect_pupil_hough_simple(eye_gray, eye_name = "Eye") {
                     
                     // Validasi posisi (dalam bounds)
                     if (x - r > 0 && x + r < w && y - r > 0 && y + r < h) {
-                        // Validasi radius (5-50 seperti di Python)
-                        if (r >= 5 && r <= 50) {
+                        // Validasi radius (konsisten dengan min_radius dan max_radius dinamis)
+                        if (r >= min_radius && r <= max_radius) {
                             all_circles.push([x, y, r]);
                         }
                     }
