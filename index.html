@@ -28,75 +28,6 @@
       display: none;
       margin: 20px 0;
     }
-    
-    /* ===== PROGRESS BAR STYLES ===== */
-    .progress-container {
-      width: 80%;
-      max-width: 600px;
-      margin: 20px auto;
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .progress-bar-wrapper {
-      width: 100%;
-      height: 30px;
-      background: #e9ecef;
-      border-radius: 15px;
-      overflow: hidden;
-      position: relative;
-      margin-bottom: 15px;
-    }
-    .progress-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #007bff, #0056b3);
-      border-radius: 15px;
-      transition: width 0.4s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: bold;
-      font-size: 14px;
-    }
-    .progress-steps {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 15px;
-    }
-    .progress-step {
-      flex: 1;
-      text-align: center;
-      padding: 8px 5px;
-      font-size: 12px;
-      color: #6c757d;
-      border-radius: 5px;
-      margin: 0 3px;
-      transition: all 0.3s ease;
-    }
-    .progress-step.active {
-      background: #e8f4fd;
-      color: #007bff;
-      font-weight: bold;
-    }
-    .progress-step.completed {
-      background: #d4edda;
-      color: #28a745;
-      font-weight: bold;
-    }
-    .progress-step::before {
-      content: "⏳ ";
-      font-size: 14px;
-    }
-    .progress-step.active::before {
-      content: "🔄 ";
-    }
-    .progress-step.completed::before {
-      content: "✅ ";
-    }
-    /* ===== END PROGRESS BAR STYLES ===== */
-    
     #results {
       display: none;
       margin: 20px auto;
@@ -186,20 +117,6 @@
   </div>
   
   <button id="analyzeBtn" disabled>Analyze Image</button>
-  
-  <!-- ===== PROGRESS BAR SECTION ===== -->
-  <div id="progressContainer" class="progress-container" style="display: none;">
-    <div class="progress-bar-wrapper">
-      <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;">0%</div>
-    </div>
-    <div class="progress-steps">
-      <div id="step1" class="progress-step">Face Detection</div>
-      <div id="step2" class="progress-step">Eye Detection</div>
-      <div id="step3" class="progress-step">Pupil Detection</div>
-      <div id="step4" class="progress-step">Calculation</div>
-    </div>
-  </div>
-  <!-- ===== END PROGRESS BAR SECTION ===== -->
   
   <div id="results">
     <h2>📊 Analysis Result</h2>
