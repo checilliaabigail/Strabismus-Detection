@@ -657,7 +657,7 @@ function processImageWithOpenCV(canvas) {
             <div class="result-item" style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-left: 4px solid #007bff;">
                 <b>💡 Interpretasi:</b><br>
                 ${interpretation}<br>
-                <small style="color: #666;">(Threshold: dx < -0.05 = Esotropia, dx > 0.05 = Exotropia)</small>
+                <small style="color: #666;">(Threshold: dx < -0.0586 = Esotropia, dx > 0.1115 = Exotropia)</small>
             </div>
             
             <div class="result-item" style="margin-top: 15px; font-style: italic; color: #007bff;">
