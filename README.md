@@ -177,9 +177,9 @@ Sistem sensitif terhadap:
 Physics – Medical & Computational Physics  
 Parahyangan Catholic University
 
-- 🌐 GitHub: [@checilliaabigail](https://github.com/checilliaabigail)
-- 📧 Email: [checilliaabigail@gmail.com]
-- 💼 LinkedIn: [https://www.linkedin.com/in/checilliaabigail/]
+- 🌐 GitHub: @checilliaabigail(https://github.com/checilliaabigail)
+- 📧 Email: checilliaabigail@gmail.com
+- 💼 LinkedIn: https://www.linkedin.com/in/checilliaabigail/
 
 ---
 
@@ -200,18 +200,10 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 🙏 Acknowledgments
 
-- **Dosen Pembimbing**: [Reinard Primulando, Ph.D.], [Drs. Janto Vincent Sulungbudi]
+- **Dosen Pembimbing**: Reinard Primulando, Ph.D., Drs. Janto Vincent Sulungbudi
 - **Universitas**: Parahyangan Catholic University
 - **Dataset**: [Anantha Moorthy A - Kaggle](https://www.kaggle.com/datasets/ananthamoorthya/strabismus)
 - OpenCV.js Documentation
 - Haar Cascade Models from OpenCV
 
 ---
-
-<div align="center">
-
-⭐ **Jika project ini bermanfaat, jangan lupa beri star!** ⭐
-
-Made with ❤️ for better eye health screening
-
-</div>
