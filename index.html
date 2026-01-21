@@ -98,11 +98,34 @@
       margin: 15px 0;
       border-radius: 4px;
     }
+    .warning-box {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    .disclaimer-box {
+      background: #f8d7da;
+      border-left: 4px solid #dc3545;
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
   <h1>🩺 Strabismus Detection (Improved Algorithm)</h1>
   <p>Upload eye image for pupil position analysis using improved detection algorithms</p>
+  
+  <div class="warning-box" style="max-width: 600px; margin: 20px auto;">
+    <h3 style="margin-top: 0;">⚠️ Important Guidelines - Please Read Before Analysis</h3>
+    <ul style="text-align: left;">
+      <li><b>Wajah harus menghadap ke depan</b> - Pastikan posisi wajah lurus menghadap kamera</li>
+      <li><b>Mata tidak boleh tertutup objek apapun</b> - Lepas kacamata, sisihkan rambut, dan hindari penghalang lainnya</li>
+      <li><b>Pencahayaan yang baik</b> - Pastikan mata terlihat jelas dan pupil dapat terdeteksi</li>
+    </ul>
+  </div>
   
   <div class="upload-box">
     <p>Select an image</p>
@@ -134,13 +157,16 @@
       </div>
     </div>
     
-    <div class="info-box">
-      <h4>📝 Algorithm Information:</h4>
-      <ul>
-        <li><b>Improved Face Detection:</b> Multiple parameter tuning with aspect ratio validation</li>
-        <li><b>Improved Eye Detection:</b> Non-overlap validation and area scoring</li>
-        <li><b>Enhanced Pupil Detection:</b> Hough Transform with CLAHE preprocessing and intensity validation</li>
-        <li><b>Confidence Scoring:</b> Based on pupil intensity (dark = high confidence)</li>
+    <div class="disclaimer-box">
+      <h4>⚠️ Medical Disclaimer:</h4>
+      <p style="margin: 10px 0;">
+        <b>Hasil analisis ini TIDAK DAPAT menggantikan diagnosis klinis profesional.</b>
+      </p>
+      <ul style="margin-top: 10px;">
+        <li>Aplikasi ini hanya untuk tujuan skrining awal dan edukasi</li>
+        <li>Hasil deteksi dapat dipengaruhi oleh kualitas gambar, pencahayaan, dan posisi wajah</li>
+        <li>Untuk diagnosis yang akurat dan penanganan medis, <b>konsultasikan dengan dokter spesialis mata (oftalmolog)</b></li>
+        <li>Jangan menggunakan hasil ini sebagai dasar untuk keputusan medis tanpa konsultasi profesional</li>
       </ul>
     </div>
   </div>
