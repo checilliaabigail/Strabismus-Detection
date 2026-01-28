@@ -638,9 +638,9 @@ function processImageWithOpenCV(canvas) {
         
         // Interpretation
         let interpretation = "";
-        if (dx < -0.0586) {
+        if (dx < -0.0671) {
             interpretation = "EXOTROPIA (mata menyerong ke luar)";
-        } else if (dx < 0.1115) {
+        } else if (dx < 0.1019) {
             interpretation = "NORMAL";
         } else {
             interpretation = "ESOTROPIA";
