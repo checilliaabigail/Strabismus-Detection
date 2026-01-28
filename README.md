@@ -26,7 +26,6 @@ Proyek ini dikembangkan sebagai bagian dari **skripsi** dengan judul:
 ## 🧠 Metode yang Digunakan
 1. **Preprocessing**
    - Grayscale conversion
-   - Histogram equalization
 2. **Face Detection**
    - Haar Cascade Classifier (`haarcascade_frontalface_default.xml`)
 3. **Eye Detection**
@@ -45,14 +44,8 @@ Proyek ini dikembangkan sebagai bagian dari **skripsi** dengan judul:
 Strabismus-Detection/
 ├── index.html                              # Halaman utama website
 ├── script.js                               # JavaScript logic (deteksi & klasifikasi)
-├── style.css                               # Styling (opsional)
 ├── haarcascade_frontalface_default.xml     # Model deteksi wajah
 ├── haarcascade_eye.xml                     # Model deteksi mata
-├── data/                                   # Dataset untuk analisis (tidak di-upload)
-│   ├── exotropia/
-│   ├── normal/
-│   └── esotropia/
-├── analisis_normalitas.py                  # Script analisis statistik Python
 └── README.md
 ```
 
@@ -147,16 +140,6 @@ Sistem sensitif terhadap:
 
 ---
 
-## 📌 Pengembangan Selanjutnya
-- [ ] Integrasi **Deep Learning** (CNN / YOLO) untuk akurasi lebih tinggi
-- [ ] Deteksi **strabismus vertikal**
-- [ ] Penilaian **tingkat keparahan** (mild, moderate, severe)
-- [ ] **Mobile app** version (React Native / Flutter)
-- [ ] **API endpoint** untuk integrasi dengan sistem lain
-- [ ] Database untuk **riwayat pemeriksaan**
-
----
-
 ## 🛠️ Teknologi yang Digunakan
 
 ### Frontend
@@ -183,14 +166,6 @@ Parahyangan Catholic University
 
 ---
 
-## 📚 Referensi
-
-1. Bradski, G. (2000). The OpenCV Library. *Dr. Dobb's Journal of Software Tools*.
-2. Viola, P., & Jones, M. (2001). Rapid object detection using a boosted cascade of simple features. *IEEE CVPR*.
-3. Anantha Moorthy A. (2024). STRABISMUS Dataset. Kaggle. https://www.kaggle.com/datasets/ananthamoorthya/strabismus
-
----
-
 ## 📄 Lisensi
 
 Proyek ini dikembangkan untuk keperluan **akademik dan penelitian**.  
@@ -201,7 +176,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## 🙏 Acknowledgments
 
 - **Dosen Pembimbing**: Reinard Primulando, Ph.D., Drs. Janto Vincent Sulungbudi
-- **Universitas**: Parahyangan Catholic University
+- **Universitas**: Universitas Katolik Parahyangan
 - **Dataset**: [Anantha Moorthy A - Kaggle](https://www.kaggle.com/datasets/ananthamoorthya/strabismus)
 - OpenCV.js Documentation
 - Haar Cascade Models from OpenCV
