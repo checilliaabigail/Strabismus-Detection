@@ -6,7 +6,7 @@ special hardware required.
 
 ## Live Demo
 
-[Open via GitHub Pages](https://checilliaabigail.github.io/strabismus-mediapipe/)
+[Open via GitHub Pages](https://checilliaabigail.github.io/Strabismus-Detection/)
 
 ## How to Use
 
