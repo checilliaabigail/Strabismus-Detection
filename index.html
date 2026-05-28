@@ -1,1 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strabismus Screening — MediaPipe Face Mesh</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+<div class="container">
+
+  <header>
+    <div class="badge">Computer Vision · Strabismus Screening</div>
+    <h1>Ocular Deviation<br><span>Detection System</span></h1>
+    <p class="subtitle">
+      Upload a frontal facial image. Landmarks are extracted via
+      MediaPipe Face Mesh, corrected for head tilt using an affine
+      rotation matrix, then classified using statistical thresholds
+      for horizontal and vertical deviation.
+    </p>
+  </header>
+
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="imageInput" accept="image/*">
+    <div class="upload-icon">📁</div>
+    <div class="upload-text">Upload facial image</div>
+    <div class="upload-sub">JPG, PNG, WEBP — frontal face preferred</div>
+  </div>
+
+  <div id="preview-section">
+    <div class="preview-wrap">
+      <canvas id="previewCanvas"></canvas>
+      <div class="processing-overlay" id="processingOverlay">
+        <div class="spinner"></div>
+        ANALYSING LANDMARKS…
+      </div>
+    </div>
+    <button class="reset-btn" id="resetBtn">↺ Upload new image</button>
+  </div>
+
+  <div class="error-banner" id="errorBanner"></div>
+
+  <div id="results-section">
+
+    <div class="classify-card" id="classifyCard">
+      <div class="classify-icon" id="classifyIcon">–</div>
+      <div>
+        <div class="classify-label">Horizontal Classification</div>
+        <div class="classify-result" id="classifyResult">–</div>
+        <div class="classify-desc" id="classifyDesc">–</div>
+      </div>
+    </div>
+
+    <div class="classify-card" id="classifyCardV">
+      <div class="classify-icon" id="classifyIconV">–</div>
+      <div>
+        <div class="classify-label">Vertical Classification</div>
+        <div class="classify-result" id="classifyResultV">–</div>
+        <div class="classify-desc" id="classifyDescV">–</div>
+      </div>
+    </div>
+
+    <div class="rot-card">
+      <div class="card-label">Rotation Correction</div>
+      <span class="rot-val" id="thetaVal">–</span>
+      <span style="color:var(--muted); font-size:11px; margin-left:8px;">
+        θ applied to all landmark coordinates before parameter computation
+      </span>
+    </div>
+
+    <div class="results-grid">
+      <div class="card">
+        <div class="card-label">Horizontal Deviation (dx_norm)</div>
+        <div class="metric-row">
+          <div class="metric">
+            <div class="metric-name">left_norm_x</div>
+            <div class="metric-val" id="leftVal">–</div>
+          </div>
+          <div class="metric">
+            <div class="metric-name">right_norm_x</div>
+            <div class="metric-val" id="rightVal">–</div>
+          </div>
+          <div class="metric">
+            <div class="metric-name">dx_norm</div>
+            <div class="metric-val" id="dxVal">–</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Vertical Deviation (|dy_norm|)</div>
+        <div class="metric-row">
+          <div class="metric">
+            <div class="metric-name">dy (norm)</div>
+            <div class="metric-val" id="dyRaw">–</div>
+          </div>
+          <div class="metric">
+            <div class="metric-name">y_ref</div>
+            <div class="metric-val" id="yRef">–</div>
+          </div>
+          <div class="metric">
+            <div class="metric-name">|dy_norm|</div>
+            <div class="metric-val" id="dyVal">–</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lm-card" style="margin-bottom:16px;">
+      <div class="card-label">Rotated Landmark Coordinates (normalised, post-correction)</div>
+      <div class="lm-grid">
+        <div class="lm-item">
+          <div class="lm-eye">LEFT EYE (rotated)</div>
+          <div id="lmLeft">–</div>
+        </div>
+        <div class="lm-item">
+          <div class="lm-eye">RIGHT EYE (rotated)</div>
+          <div id="lmRight">–</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="thresh-card">
+      <div class="thresh-title">Classification Rules</div>
+
+      <div class="thresh-section-label">
+        HORIZONTAL (dx_norm) — 3 classes · accuracy 87.20%
+      </div>
+      <div class="thresh-row">
+        <div class="thresh-dot" style="background:var(--exo)"></div>
+        <div class="thresh-rule">dx_norm &lt; −0.1519</div>
+        <div class="thresh-class result-exo">Exotropia</div>
+      </div>
+      <div class="thresh-row">
+        <div class="thresh-dot" style="background:var(--normal)"></div>
+        <div class="thresh-rule">−0.1519 ≤ dx_norm ≤ 0.0484</div>
+        <div class="thresh-class result-norm">Normal</div>
+      </div>
+      <div class="thresh-row">
+        <div class="thresh-dot" style="background:var(--eso)"></div>
+        <div class="thresh-rule">dx_norm &gt; 0.0484</div>
+        <div class="thresh-class result-eso">Esotropia</div>
+      </div>
+
+      <div class="thresh-section-label">
+        VERTICAL (|dy_norm|) — 2 classes · accuracy 80.00%
+      </div>
+      <div class="thresh-row">
+        <div class="thresh-dot" style="background:var(--normal)"></div>
+        <div class="thresh-rule">|dy_norm| ≤ 0.1160</div>
+        <div class="thresh-class result-norm">Normal</div>
+      </div>
+      <div class="thresh-row">
+        <div class="thresh-dot" style="background:var(--vert)"></div>
+        <div class="thresh-rule">|dy_norm| &gt; 0.1160</div>
+        <div class="thresh-class result-vert">Vertical Strabismus</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
