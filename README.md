@@ -1,184 +1,67 @@
-# 👁️ Strabismus Screening System (Computer Vision Based)
+# Strabismus Screening System
 
-Sistem **skrining strabismus (mata juling)** berbasis **computer vision** yang diimplementasikan dalam bentuk **website**.  
-Pengguna dapat mengunggah foto wajah, kemudian sistem akan melakukan **deteksi wajah dan mata**, **ekstraksi pupil**, serta **klasifikasi posisi mata** (normal / esotropia / exotropia) berdasarkan perbedaan posisi pupil.
+A lightweight, client-side web application for automatic strabismus 
+screening using MediaPipe Face Mesh. No server infrastructure or 
+special hardware required.
 
-Proyek ini dikembangkan sebagai bagian dari **skripsi** dengan judul:
+## Live Demo
 
-> **Computer Vision for Strabismus Detection**
+[Open via GitHub Pages](https://checilliaabigail.github.io/strabismus-mediapipe/)
 
----
+## How to Use
 
-## 🔍 Fitur Utama
-- Upload gambar wajah melalui website
-- Deteksi wajah dan mata menggunakan **Haar Cascade**
-- Deteksi pupil otomatis menggunakan **Hough Circle Transform**
-- Perhitungan perbedaan posisi horizontal pupil (Δx)
-- Klasifikasi:
-  - **Normal**
-  - **Esotropia** (mata mengarah ke dalam)
-  - **Exotropia** (mata mengarah ke luar)
-- Visualisasi hasil deteksi (bounding box & pupil)
-- Berbasis **client-side (JavaScript)** - tidak perlu server
+1. Open the application in any modern browser
+2. Upload a clear frontal facial image (JPG, PNG, or WEBP)
+3. The system will automatically:
+   - Extract 10 eye-region landmarks via MediaPipe Face Mesh
+   - Apply rotation correction for head tilt
+   - Compute normalized horizontal (dx_norm) and vertical (|dy_norm|) deviation parameters
+   - Classify the result using statistical thresholds
 
----
+## Classification Output
 
-## 🧠 Metode yang Digunakan
-1. **Preprocessing**
-   - Grayscale conversion
-2. **Face Detection**
-   - Haar Cascade Classifier (`haarcascade_frontalface_default.xml`)
-3. **Eye Detection**
-   - Haar Cascade Eye Detector (`haarcascade_eye.xml`)
-4. **Pupil Detection**
-   - Hough Circle Transform (auto detection)
-5. **Strabismus Classification**
-   - Berdasarkan selisih posisi pupil kiri dan kanan (Δx)
-   - Threshold ditentukan dari analisis statistik data
+**Horizontal (3 classes):**
+- Exotropia — outward (temporal) deviation
+- Normal — no significant horizontal deviation
+- Esotropia — inward (nasal) deviation
 
----
+**Vertical (2 classes):**
+- Normal — no significant vertical deviation
+- Vertical Strabismus — upward or downward deviation (hypertropia/hypotropia)
 
-## 📁 Struktur Proyek
+## Performance
 
-```
-Strabismus-Detection/
-├── index.html                              # Halaman utama website
-├── script.js                               # JavaScript logic (deteksi & klasifikasi)
-├── haarcascade_frontalface_default.xml     # Model deteksi wajah
-├── haarcascade_eye.xml                     # Model deteksi mata
-└── README.md
-```
+| Axis | Accuracy | Sensitivity | Specificity |
+|------|----------|-------------|-------------|
+| Horizontal | 87.20% | 86.24% | 89.00% |
+| Vertical | 80.00% | 79.49% | 81.00% |
 
----
+## Method
 
-## 🚀 Cara Menjalankan
+Thresholds were derived offline from 484 labelled cropped 
+eye-region images using:
+- Gaussian log-likelihood intersection for horizontal deviation
+- Gamma log-likelihood intersection for vertical deviation
 
-### 1. Clone Repository
-```bash
-git clone https://github.com/checilliaabigail/Strabismus-Detection.git
-cd Strabismus-Detection
-```
+Distribution models were selected empirically via the Shapiro-Wilk 
+normality test.
 
-### 2. Download Dataset (Opsional - untuk analisis)
-Dataset yang digunakan tersedia di Kaggle:  
-👉 **[STRABISMUS Dataset by Anantha Moorthy A](https://www.kaggle.com/datasets/ananthamoorthya/strabismus)**
+## Important Notice
 
-**Cara download:**
-```bash
-# Menggunakan Kaggle API
-pip install kaggle
-kaggle datasets download -d ananthamoorthya/strabismus
-unzip strabismus.zip -d data/
-```
+This system is intended **solely as a preliminary screening aid** 
+and should not replace professional medical diagnosis. Clinical 
+validation is required before deployment in medical practice.
 
-### 3. Jalankan Website
-Buka file `index.html` menggunakan browser (disarankan **Google Chrome** atau **Firefox**)
+## Related Paper
 
-**Atau gunakan local server:**
-```bash
-# Python 3
-python -m http.server 8000
+> Abighail C.J., Primulando R., Sulungbudi J.V., Fidiani E. 
+> *Computer Vision for Strabismus Detection*. 2025.
 
-# Akses di browser: http://localhost:8000
-```
+## Dataset
 
-### 4. Upload Gambar
-- Pilih foto wajah (tampak depan)
-- Klik "Detect" atau "Analyze"
-- Lihat hasil deteksi dan klasifikasi
+Moorthy A. (2024). *Strabismus Detection Dataset*. Kaggle.  
+https://www.kaggle.com/datasets/ananthamoorthya/strabismus
 
----
+## License
 
-## 📊 Output Sistem
-- ✅ Deteksi wajah dan mata
-- ✅ Titik pusat pupil kiri dan kanan
-- ✅ Nilai perbedaan posisi pupil (Δx)
-- ✅ Hasil klasifikasi:
-  - **Normal**: Δx ≈ 0
-  - **Esotropia**: Δx > threshold (positif)
-  - **Exotropia**: Δx < threshold (negatif)
-
-### Visualisasi
-- Bounding box wajah dan mata
-- Marker pada posisi pupil
-- Label klasifikasi hasil deteksi
-
-⚠️ **Catatan**: Sistem ini bukan alat diagnosis medis, melainkan **alat skrining awal**.
-
----
-
-## 🧪 Dataset & Threshold
-
-### Dataset
-- **Sumber**: [Kaggle - STRABISMUS Dataset](https://www.kaggle.com/datasets/ananthamoorthya/strabismus)
-- **Author**: Anantha Moorthy A
-- **Kategori**: Normal, Esotropia, Exotropia
-
-### Analisis Statistik
-Threshold klasifikasi ditentukan berdasarkan:
-- Uji normalitas (Shapiro-Wilk Test)
-- Analisis distribusi data per kategori
-- Perhitungan mean dan standar deviasi
-
-| Kelompok | N | Mean (μ) | Std Dev (σ) | Min | Max |
-|----------|---|----------|-------------|-----|-----|
-| **Exotropia** | 57 | -0.1193 | 0.1016 | -0.3543 | 0.1476 |
-| **Normal** | 63 | 0.0021 | 0.0609 | -0.1647 | 0.1310 |
-| **Esotropia** | 47 | 0.2210 | 0.0826 | 0.0210 | 0.3652 |
-
----
-
-## ⚠️ Keterbatasan
-Sistem sensitif terhadap:
-- ❌ Pencahayaan (terlalu terang/gelap)
-- ❌ Sudut wajah (tidak frontal)
-- ❌ Resolusi gambar rendah
-- ❌ Mata tertutup atau tertutup sebagian
-- ❌ Tidak mendeteksi strabismus vertikal (hanya horizontal)
-
-**Penting**: Sistem ini **tidak menggantikan** pemeriksaan klinis oleh dokter mata spesialis.
-
----
-
-## 🛠️ Teknologi yang Digunakan
-
-### Frontend
-- HTML5, CSS3, JavaScript (ES6+)
-- OpenCV.js (Computer Vision library)
-- Haar Cascade Classifiers
-
-### Analisis Data (Python)
-- Pandas, NumPy
-- Matplotlib, Seaborn
-- SciPy (statistical tests)
-
----
-
-## 👩‍🎓 Author
-
-**Checillia Jaqueline Abighail**  
-Physics – Medical & Computational Physics  
-Parahyangan Catholic University
-
-- 🌐 GitHub: @checilliaabigail(https://github.com/checilliaabigail)
-- 📧 Email: checilliaabigail@gmail.com
-- 💼 LinkedIn: https://www.linkedin.com/in/checilliaabigail/
-
----
-
-## 📄 Lisensi
-
-Proyek ini dikembangkan untuk keperluan **akademik dan penelitian**.  
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
-## 🙏 Acknowledgments
-
-- **Dosen Pembimbing**: Reinard Primulando, Ph.D., Drs. Janto Vincent Sulungbudi
-- **Universitas**: Universitas Katolik Parahyangan
-- **Dataset**: [Anantha Moorthy A - Kaggle](https://www.kaggle.com/datasets/ananthamoorthya/strabismus)
-- OpenCV.js Documentation
-- Haar Cascade Models from OpenCV
-
----
+MIT License
