@@ -55,7 +55,7 @@ validation is required before deployment in medical practice.
 ## Related Paper
 
 > Abighail C.J., Primulando R., Sulungbudi J.V.
-> *Computer Vision for Strabismus Detection*. 2025.
+> *Computer Vision for Strabismus Detection*. 2026.
 
 ## Dataset
 
